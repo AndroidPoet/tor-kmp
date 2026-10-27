@@ -129,7 +129,9 @@ public class Tor(
      * Like [connect], then performs a TLS handshake with [host] as the server name.
      * The certificate is checked against Mozilla's root store; the returned stream
      * carries plaintext and TLS happens inside the library, identically on every
-     * platform.
+     * platform. A peer that closes without a TLS `close_notify` makes [TorStream.read]
+     * throw rather than return -1, so a truncated response cannot pass for a complete
+     * one; read by your protocol's framing and it never happens.
      *
      * @throws TorException if the connection or the handshake fails, or the client is closed.
      */

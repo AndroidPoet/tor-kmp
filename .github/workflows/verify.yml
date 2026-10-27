@@ -11,6 +11,10 @@ on:
         description: "Run one job: ios, android, linux or windows (empty = all)"
         required: false
         default: ""
+      log:
+        description: "TORKMP_LOG level for the Windows steps: error, warn, info, debug or trace"
+        required: false
+        default: "debug"
 
 concurrency:
   group: verify-${{ github.ref }}
@@ -155,12 +159,17 @@ jobs:
       - name: JVM live test (torkmp.dll)
         shell: bash
         env:
-          TORKMP_LOG: debug
+          TORKMP_LOG: ${{ inputs.log }}
         run: |
+          set +e
           timeout 1200 ./gradlew :tor:jvmTest --tests '*TorLiveTest.test_connectTls_toCheckTorProject*' --info 2>&1 \
-            | grep -vE "^(Caching disabled|Skipping|Resolve mutations|Task .* is not up-to-date|Starting process|Successfully started|file or directory|Watching|Received|Build cache|Executing|Transforming|Downloading|Download)" || true
-          test -f tor/build/test-results/jvmTest/TEST-io.github.androidpoet.tor.TorLiveTest.xml
-          grep -c "<failure" tor/build/test-results/jvmTest/TEST-io.github.androidpoet.tor.TorLiveTest.xml && exit 1 || true
+            | grep -vE "^(Caching disabled|Skipping|Resolve mutations|Task .* is not up-to-date|Starting process|Successfully started|file or directory|Watching|Received|Build cache|Executing|Transforming|Downloading|Download)"
+          status=${PIPESTATUS[0]}
+          set -e
+          test "$status" -eq 0
+          report=tor/build/test-results/jvmTest/TEST-io.github.androidpoet.tor.TorLiveTest.xml
+          test -f "$report"
+          grep -q 'tests="1"' "$report" && ! grep -q "<failure" "$report"
       - name: Link the test binaries
         shell: bash
         run: ./gradlew :tor:linkDebugTestMingwX64 :tor-ktor:linkDebugTestMingwX64
@@ -177,7 +186,7 @@ jobs:
         shell: bash
         continue-on-error: true
         env:
-          TORKMP_LOG: debug
+          TORKMP_LOG: ${{ inputs.log }}
         run: |
           timeout 300 tor/build/bin/mingwX64/debugTest/test.exe --ktest_logger=SIMPLE \
             --ktest_filter='io.github.androidpoet.tor.TorLiveTest.*'
@@ -185,5 +194,5 @@ jobs:
         shell: bash
         continue-on-error: true
         env:
-          TORKMP_LOG: debug
+          TORKMP_LOG: ${{ inputs.log }}
         run: timeout 300 tor-ktor/build/bin/mingwX64/debugTest/test.exe --ktest_logger=SIMPLE

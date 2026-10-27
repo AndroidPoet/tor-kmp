@@ -1,8 +1,10 @@
 package io.github.androidpoet.tor.lyrebird
 
 import io.github.androidpoet.tor.Bridge
+import io.github.androidpoet.tor.Isolation
 import io.github.androidpoet.tor.Tor
 import io.github.androidpoet.tor.TorConfig
+import io.github.androidpoet.tor.TorException
 import io.github.androidpoet.tor.TorState
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.test.runTest
@@ -37,26 +39,42 @@ class LyrebirdLiveTest {
                     tor.bootstrap()
 
                     assertEquals(TorState.Ready, tor.state.value)
-                    val body =
-                        tor.connectTls("check.torproject.org").use { stream ->
-                            stream.write(
-                                "GET /api/ip HTTP/1.1\r\nHost: check.torproject.org\r\nConnection: close\r\n\r\n".encodeToByteArray(),
-                            )
-                            val buffer = ByteArray(BUFFER_SIZE)
-                            val response = StringBuilder()
-                            while (true) {
-                                val count = stream.read(buffer)
-                                if (count < 0) break
-                                response.append(buffer.decodeToString(0, count))
-                            }
-                            response.toString()
-                        }
+                    val body = tor.checkTorResponse()
                     assertTrue(body.contains("\"IsTor\":true"), "not on Tor: $body")
                 }
             }
         }
 
+    /**
+     * check.torproject.org sometimes accepts the TLS session and then closes it
+     * without answering (it rate-limits busy exits); a fresh circuit gets through.
+     */
+    private suspend fun Tor.checkTorResponse(): String {
+        var lastFailure: TorException? = null
+        repeat(ATTEMPTS) {
+            try {
+                return connectTls("check.torproject.org", isolation = Isolation.random()).use { stream ->
+                    stream.write(
+                        "GET /api/ip HTTP/1.1\r\nHost: check.torproject.org\r\nConnection: close\r\n\r\n".encodeToByteArray(),
+                    )
+                    val buffer = ByteArray(BUFFER_SIZE)
+                    val response = StringBuilder()
+                    while (true) {
+                        val count = stream.read(buffer)
+                        if (count < 0) break
+                        response.append(buffer.decodeToString(0, count))
+                    }
+                    response.toString()
+                }
+            } catch (failure: TorException) {
+                lastFailure = failure
+            }
+        }
+        throw checkNotNull(lastFailure)
+    }
+
     private companion object {
+        const val ATTEMPTS = 3
         const val BUFFER_SIZE = 16 * 1024
 
         /** From https://bridges.torproject.org/moat/circumvention/builtin, 2026-10-27. */

@@ -158,7 +158,9 @@ impl Circuits {
     /// Opens a stream, retrying on a fresh circuit when the exit does not answer
     /// in time. Arti makes one attempt per call and keeps the slow circuit, so
     /// without this a congested bridge or exit fails every connect for a while;
-    /// C Tor moves such streams to another circuit, and so does this.
+    /// C Tor moves such streams to another circuit, and so does this. A retried
+    /// stream gets a circuit of its own rather than its isolation group's: more
+    /// isolated than asked for, never less.
     pub(crate) async fn open(
         &self,
         host: &str,
@@ -198,7 +200,9 @@ fn init_logging() {
             return;
         };
         let Ok(level) = level.parse::<tracing::level_filters::LevelFilter>() else {
-            eprintln!("torkmp: TORKMP_LOG={level:?} is not a level (error, warn, info, debug, trace)");
+            eprintln!(
+                "torkmp: TORKMP_LOG={level:?} is not a level (error, warn, info, debug, trace)"
+            );
             return;
         };
         let _ = tracing_subscriber::fmt()
@@ -568,11 +572,6 @@ pub unsafe extern "C" fn torkmp_stream_read(
         tokio::select! {
             result = reader.read(buffer) => match result {
                 Ok(count) => count as i64,
-                // A TLS peer that closes without close_notify. Browsers and NSS treat
-                // this as end of stream and leave truncation to the protocol's own
-                // framing; rustls reports it as an error, which would turn every
-                // abrupt but complete HTTPS response into a failure.
-                Err(error) if error.kind() == std::io::ErrorKind::UnexpectedEof => 0,
                 Err(error) => {
                     set_error(format!("read failed: {error}"));
                     -1

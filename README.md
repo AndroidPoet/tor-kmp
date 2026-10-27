@@ -144,7 +144,11 @@ tor.connectTls("example.com", 443)             // TLS already done inside the To
 `connectTls` verifies the certificate against Mozilla's root store (bundled, so it is the
 same on every platform) and negotiates `http/1.1`. It is a convenience for simple clients;
 for certificate pinning, your platform's trust store or client certificates, do TLS yourself
-on top of `connect()`, which is exactly what `tor-okhttp` does.
+on top of `connect()`, which is exactly what `tor-okhttp` does. A peer that drops the
+connection without a TLS `close_notify` makes `read()` throw instead of reporting the end of
+the stream, so a truncated response is never mistaken for a complete one; read as much as
+your protocol's framing says (`Content-Length`, chunking) and you never see it. The HTTP
+adapters do that for you.
 
 ### Ktor (`tor-ktor`, every target)
 
