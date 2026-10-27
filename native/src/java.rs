@@ -6,7 +6,7 @@ use std::ffi::{CStr, CString};
 use std::ptr;
 
 use jni::objects::{JByteArray, JClass, JString};
-use jni::sys::{jboolean, jfloat, jint, jlong, jstring, JNI_FALSE, JNI_TRUE};
+use jni::sys::{jfloat, jint, jlong, jstring};
 use jni::JNIEnv;
 
 use crate::*;
@@ -89,32 +89,15 @@ pub extern "system" fn Java_io_github_androidpoet_tor_internal_TorBridge_cancelB
     unsafe { torkmp_cancel_bootstrap(tor as *const TorKmp) }
 }
 
-fn status(tor: jlong) -> (f32, bool) {
-    let (mut fraction, mut ready) = (0f32, 0i32);
-    unsafe { torkmp_status(tor as *const TorKmp, &mut fraction, &mut ready) };
-    (fraction, ready == 1)
-}
-
 #[no_mangle]
 pub extern "system" fn Java_io_github_androidpoet_tor_internal_TorBridge_progress(
     _env: JNIEnv,
     _class: JClass,
     tor: jlong,
 ) -> jfloat {
-    status(tor).0
-}
-
-#[no_mangle]
-pub extern "system" fn Java_io_github_androidpoet_tor_internal_TorBridge_isReady(
-    _env: JNIEnv,
-    _class: JClass,
-    tor: jlong,
-) -> jboolean {
-    if status(tor).1 {
-        JNI_TRUE
-    } else {
-        JNI_FALSE
-    }
+    let (mut fraction, mut ready) = (0f32, 0i32);
+    unsafe { torkmp_status(tor as *const TorKmp, &mut fraction, &mut ready) };
+    fraction
 }
 
 #[no_mangle]

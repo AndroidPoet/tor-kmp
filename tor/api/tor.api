@@ -1,9 +1,5 @@
 public final class io/github/androidpoet/tor/SocksProxy {
 	public fun <init> (Ljava/lang/String;I)V
-	public final fun component1 ()Ljava/lang/String;
-	public final fun component2 ()I
-	public final fun copy (Ljava/lang/String;I)Lio/github/androidpoet/tor/SocksProxy;
-	public static synthetic fun copy$default (Lio/github/androidpoet/tor/SocksProxy;Ljava/lang/String;IILjava/lang/Object;)Lio/github/androidpoet/tor/SocksProxy;
 	public fun equals (Ljava/lang/Object;)Z
 	public final fun getHost ()Ljava/lang/String;
 	public final fun getPort ()I
@@ -42,10 +38,6 @@ public abstract interface class io/github/androidpoet/tor/TorState {
 
 public final class io/github/androidpoet/tor/TorState$Bootstrapping : io/github/androidpoet/tor/TorState {
 	public fun <init> (FLjava/lang/String;)V
-	public final fun component1 ()F
-	public final fun component2 ()Ljava/lang/String;
-	public final fun copy (FLjava/lang/String;)Lio/github/androidpoet/tor/TorState$Bootstrapping;
-	public static synthetic fun copy$default (Lio/github/androidpoet/tor/TorState$Bootstrapping;FLjava/lang/String;ILjava/lang/Object;)Lio/github/androidpoet/tor/TorState$Bootstrapping;
 	public fun equals (Ljava/lang/Object;)Z
 	public final fun getBlockedReason ()Ljava/lang/String;
 	public final fun getProgress ()F
@@ -62,9 +54,6 @@ public final class io/github/androidpoet/tor/TorState$Closed : io/github/android
 
 public final class io/github/androidpoet/tor/TorState$Failed : io/github/androidpoet/tor/TorState {
 	public fun <init> (Lio/github/androidpoet/tor/TorException;)V
-	public final fun component1 ()Lio/github/androidpoet/tor/TorException;
-	public final fun copy (Lio/github/androidpoet/tor/TorException;)Lio/github/androidpoet/tor/TorState$Failed;
-	public static synthetic fun copy$default (Lio/github/androidpoet/tor/TorState$Failed;Lio/github/androidpoet/tor/TorException;ILjava/lang/Object;)Lio/github/androidpoet/tor/TorState$Failed;
 	public fun equals (Ljava/lang/Object;)Z
 	public final fun getError ()Lio/github/androidpoet/tor/TorException;
 	public fun hashCode ()I

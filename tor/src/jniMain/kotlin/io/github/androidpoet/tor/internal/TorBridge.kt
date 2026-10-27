@@ -17,8 +17,6 @@ internal actual object TorBridge {
 
     @JvmStatic actual external fun progress(tor: Long): Float
 
-    @JvmStatic actual external fun isReady(tor: Long): Boolean
-
     @JvmStatic actual external fun blockedReason(tor: Long): String?
 
     @JvmStatic actual external fun newIdentity(tor: Long)

@@ -10,9 +10,9 @@ package io.github.androidpoet.tor
  * Any app on the device can connect to a loopback port. Prefer [Tor.connect] when
  * you control the networking code.
  */
-public data class SocksProxy(
-    val host: String,
-    val port: Int,
+public class SocksProxy(
+    public val host: String,
+    public val port: Int,
 ) {
     /**
      * The proxy as a `socks5h://` URL.
@@ -24,4 +24,10 @@ public data class SocksProxy(
      */
     public fun url(isolation: String? = null): String =
         if (isolation == null) "socks5h://$host:$port" else "socks5h://$isolation:x@$host:$port"
+
+    override fun equals(other: Any?): Boolean = other is SocksProxy && other.host == host && other.port == port
+
+    override fun hashCode(): Int = 31 * host.hashCode() + port
+
+    override fun toString(): String = "SocksProxy($host:$port)"
 }

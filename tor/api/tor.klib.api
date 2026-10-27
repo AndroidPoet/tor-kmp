@@ -15,9 +15,6 @@ sealed interface io.github.androidpoet.tor/TorState { // io.github.androidpoet.t
         final val progress // io.github.androidpoet.tor/TorState.Bootstrapping.progress|{}progress[0]
             final fun <get-progress>(): kotlin/Float // io.github.androidpoet.tor/TorState.Bootstrapping.progress.<get-progress>|<get-progress>(){}[0]
 
-        final fun component1(): kotlin/Float // io.github.androidpoet.tor/TorState.Bootstrapping.component1|component1(){}[0]
-        final fun component2(): kotlin/String? // io.github.androidpoet.tor/TorState.Bootstrapping.component2|component2(){}[0]
-        final fun copy(kotlin/Float = ..., kotlin/String? = ...): io.github.androidpoet.tor/TorState.Bootstrapping // io.github.androidpoet.tor/TorState.Bootstrapping.copy|copy(kotlin.Float;kotlin.String?){}[0]
         final fun equals(kotlin/Any?): kotlin/Boolean // io.github.androidpoet.tor/TorState.Bootstrapping.equals|equals(kotlin.Any?){}[0]
         final fun hashCode(): kotlin/Int // io.github.androidpoet.tor/TorState.Bootstrapping.hashCode|hashCode(){}[0]
         final fun toString(): kotlin/String // io.github.androidpoet.tor/TorState.Bootstrapping.toString|toString(){}[0]
@@ -29,8 +26,6 @@ sealed interface io.github.androidpoet.tor/TorState { // io.github.androidpoet.t
         final val error // io.github.androidpoet.tor/TorState.Failed.error|{}error[0]
             final fun <get-error>(): io.github.androidpoet.tor/TorException // io.github.androidpoet.tor/TorState.Failed.error.<get-error>|<get-error>(){}[0]
 
-        final fun component1(): io.github.androidpoet.tor/TorException // io.github.androidpoet.tor/TorState.Failed.component1|component1(){}[0]
-        final fun copy(io.github.androidpoet.tor/TorException = ...): io.github.androidpoet.tor/TorState.Failed // io.github.androidpoet.tor/TorState.Failed.copy|copy(io.github.androidpoet.tor.TorException){}[0]
         final fun equals(kotlin/Any?): kotlin/Boolean // io.github.androidpoet.tor/TorState.Failed.equals|equals(kotlin.Any?){}[0]
         final fun hashCode(): kotlin/Int // io.github.androidpoet.tor/TorState.Failed.hashCode|hashCode(){}[0]
         final fun toString(): kotlin/String // io.github.androidpoet.tor/TorState.Failed.toString|toString(){}[0]
@@ -63,9 +58,6 @@ final class io.github.androidpoet.tor/SocksProxy { // io.github.androidpoet.tor/
     final val port // io.github.androidpoet.tor/SocksProxy.port|{}port[0]
         final fun <get-port>(): kotlin/Int // io.github.androidpoet.tor/SocksProxy.port.<get-port>|<get-port>(){}[0]
 
-    final fun component1(): kotlin/String // io.github.androidpoet.tor/SocksProxy.component1|component1(){}[0]
-    final fun component2(): kotlin/Int // io.github.androidpoet.tor/SocksProxy.component2|component2(){}[0]
-    final fun copy(kotlin/String = ..., kotlin/Int = ...): io.github.androidpoet.tor/SocksProxy // io.github.androidpoet.tor/SocksProxy.copy|copy(kotlin.String;kotlin.Int){}[0]
     final fun equals(kotlin/Any?): kotlin/Boolean // io.github.androidpoet.tor/SocksProxy.equals|equals(kotlin.Any?){}[0]
     final fun hashCode(): kotlin/Int // io.github.androidpoet.tor/SocksProxy.hashCode|hashCode(){}[0]
     final fun toString(): kotlin/String // io.github.androidpoet.tor/SocksProxy.toString|toString(){}[0]

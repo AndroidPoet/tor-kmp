@@ -50,9 +50,13 @@ internal actual object TorBridge {
 
     actual fun cancelBootstrap(tor: Long) = torkmp_cancel_bootstrap(tor.client)
 
-    actual fun progress(tor: Long): Float = status(tor).first
-
-    actual fun isReady(tor: Long): Boolean = status(tor).second
+    actual fun progress(tor: Long): Float =
+        memScoped {
+            val fraction = alloc<FloatVar>()
+            val ready = alloc<IntVar>()
+            torkmp_status(tor.client, fraction.ptr, ready.ptr)
+            fraction.value
+        }
 
     actual fun blockedReason(tor: Long): String? = torkmp_blocked_reason(tor.client)?.consume()
 
@@ -104,14 +108,6 @@ internal actual object TorBridge {
     actual fun stopSocks(tor: Long) = torkmp_socks_stop(tor.client)
 
     actual fun destroy(tor: Long) = torkmp_destroy(tor.client)
-
-    private fun status(tor: Long): Pair<Float, Boolean> =
-        memScoped {
-            val fraction = alloc<FloatVar>()
-            val ready = alloc<IntVar>()
-            torkmp_status(tor.client, fraction.ptr, ready.ptr)
-            fraction.value to (ready.value == 1)
-        }
 
     private val Long.client: CPointer<TorKmp> get() = toCPointer()!!
     private val Long.stream: CPointer<TorKmpStream> get() = toCPointer()!!

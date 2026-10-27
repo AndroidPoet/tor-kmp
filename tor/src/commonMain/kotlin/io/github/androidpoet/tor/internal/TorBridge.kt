@@ -20,8 +20,6 @@ internal expect object TorBridge {
 
     fun progress(tor: Long): Float
 
-    fun isReady(tor: Long): Boolean
-
     fun blockedReason(tor: Long): String?
 
     fun newIdentity(tor: Long)
