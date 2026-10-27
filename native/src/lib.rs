@@ -187,6 +187,28 @@ impl Circuits {
 /// Extra attempts after a stream times out at the exit, each on a new circuit.
 const EXIT_TIMEOUT_RETRIES: u32 = 2;
 
+/// Installs a stderr logger for Arti's tracing output when `TORKMP_LOG` names a
+/// level (`error`, `warn`, `info`, `debug`, `trace`). Off by default: the output
+/// is for diagnosing a stuck bootstrap, not for production, and it can name
+/// relays and timings a release build should keep to itself. Runs once.
+fn init_logging() {
+    static ONCE: std::sync::Once = std::sync::Once::new();
+    ONCE.call_once(|| {
+        let Ok(level) = std::env::var("TORKMP_LOG") else {
+            return;
+        };
+        let Ok(level) = level.parse::<tracing::level_filters::LevelFilter>() else {
+            eprintln!("torkmp: TORKMP_LOG={level:?} is not a level (error, warn, info, debug, trace)");
+            return;
+        };
+        let _ = tracing_subscriber::fmt()
+            .with_max_level(level)
+            .with_writer(std::io::stderr)
+            .with_ansi(false)
+            .try_init();
+    });
+}
+
 /// Optional settings for `torkmp_create`, as the Kotlin side serialises them.
 #[derive(Deserialize, Default)]
 struct Settings {
@@ -286,6 +308,7 @@ pub unsafe extern "C" fn torkmp_create(
     cache_dir: *const c_char,
     settings: *const c_char,
 ) -> *mut TorKmp {
+    init_logging();
     let (Some(state_dir), Some(cache_dir)) = (
         arg_str(state_dir, "state_dir"),
         arg_str(cache_dir, "cache_dir"),

@@ -28,6 +28,9 @@ webpki-roots = "1"
 # Bridge and pluggable-transport settings arrive from Kotlin as one JSON document.
 serde = { version = "1", features = ["derive"] }
 serde_json = "1"
+# Opt-in diagnostics: TORKMP_LOG=<level> prints Arti's tracing output to stderr.
+tracing = "0.1"
+tracing-subscriber = { version = "0.3", default-features = false, features = ["fmt", "std"] }
 # OS randomness for generated SOCKS passwords and isolation keys.
 getrandom = "0.3"
 

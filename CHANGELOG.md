@@ -20,6 +20,8 @@ adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
   `PluggableTransport`. Live-tested against Tor Browser's built-in obfs4 bridges.
 - **WebSockets** in `tor-ktor`: install Ktor's `WebSockets` plugin and use
   `client.webSocket(...)` as with any engine, including `wss://` and onion hosts.
+- `TORKMP_LOG`: set it to `info`, `debug` or `trace` and the native core prints
+  Arti's log to stderr for diagnosing a stuck bootstrap. Off by default.
 - `Isolation` value class and `Isolation.random()`; `SocksAuth` with
   `Generated` (default), `Password` and `None`.
 

@@ -269,6 +269,9 @@ val tor =
 - With a non-empty bridge list Arti uses **only** the bridges. `Bridge.parse` validates each
   line with Arti's own parser, and `TorConfig` checks that every transport a line names is
   provided, so mistakes surface before any network activity.
+- Set **`TORKMP_LOG=info`** (or `debug`, `trace`) in the environment to have the native
+  core print Arti's own log to stderr, which shows where a bootstrap or bridge handshake
+  stalls. Off by default; it names relays and timings.
 - Give users **several bridge lines**. Arti keeps retrying a bridge whose obfs4 handshake
   fails, so a single dead bridge leaves `bootstrap()` at a few percent indefinitely; wrap
   it in `withTimeout` and watch `progress` if you need to give up. The three built-in

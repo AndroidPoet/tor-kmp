@@ -4908,6 +4908,8 @@ dependencies = [
  "serde_json",
  "tokio",
  "tor-rtcompat",
+ "tracing",
+ "tracing-subscriber",
  "webpki-roots",
 ]
 

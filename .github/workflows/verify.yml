@@ -154,9 +154,13 @@ jobs:
             --ktest_filter='io.github.androidpoet.tor.ValueSemanticsTest.*:io.github.androidpoet.tor.internal.NativeHandleTest.*'
       - name: Live tests, tor
         shell: bash
+        env:
+          TORKMP_LOG: info
         run: |
-          timeout 900 tor/build/bin/mingwX64/debugTest/test.exe --ktest_logger=SIMPLE \
+          timeout 600 tor/build/bin/mingwX64/debugTest/test.exe --ktest_logger=SIMPLE \
             --ktest_filter='io.github.androidpoet.tor.TorLiveTest.*'
       - name: Live tests, tor-ktor
         shell: bash
-        run: timeout 900 tor-ktor/build/bin/mingwX64/debugTest/test.exe --ktest_logger=SIMPLE
+        env:
+          TORKMP_LOG: info
+        run: timeout 600 tor-ktor/build/bin/mingwX64/debugTest/test.exe --ktest_logger=SIMPLE
