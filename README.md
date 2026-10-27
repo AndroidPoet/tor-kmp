@@ -64,24 +64,24 @@ compatibility with it is then yours to verify.
 ## Quickstart
 
 The raw stream API first, because every transport below is built on it. If you only need an
-HTTP client, skim this and jump to [Choose a transport](#choose-a-transport).
+HTTP client, skim this and jump to [Choose a transport](#choose-a-transport). Keep one
+`Tor` per app; its data directory must be app-private (paths per platform under
+[Platform notes](#platform-notes)). The first `connect()` bootstraps, 20–40 s on a cold
+directory.
 
 ```kotlin
 import io.github.androidpoet.tor.Tor
 import io.github.androidpoet.tor.TorConfig
 
-// One instance per app, kept for as long as you need Tor. dataDirectory must be
-// app-private and writable; see "Platform notes" for the path on each platform.
 val tor = Tor(TorConfig(dataDirectory = "$appPrivateDir/tor"))
 
 suspend fun fetchThroughTor(): String {
-    // connect() bootstraps on first use (20–40 s cold, a few seconds with a warm directory).
     tor.connect("example.com", 80).use { stream ->
         stream.write("GET / HTTP/1.1\r\nHost: example.com\r\nConnection: close\r\n\r\n".encodeToByteArray())
         val buffer = ByteArray(16 * 1024)
         val response = StringBuilder()
         while (true) {
-            val count = stream.read(buffer)          // -1 when the remote side closes
+            val count = stream.read(buffer)
             if (count < 0) break
             response.append(buffer.decodeToString(0, count))
         }
@@ -97,12 +97,12 @@ import io.github.androidpoet.tor.BlockageKind
 import io.github.androidpoet.tor.TorState
 import kotlinx.coroutines.launch
 
-uiScope.launch {                               // a StateFlow: collect it from any coroutine scope
+uiScope.launch {
     tor.state.collect { state ->
         when (state) {
             TorState.Idle -> {}
             is TorState.Bootstrapping -> {
-                val blockage = state.blockage      // null while it is making progress
+                val blockage = state.blockage
                 val hint =
                     when (blockage?.kind) {
                         null -> "Connecting to Tor… ${(state.progress * 100).toInt()}%"
@@ -155,13 +155,12 @@ import io.ktor.client.statement.bodyAsText
 
 val client = HttpClient(TorEngine) {
     engine {
-        tor = myTor                   // the Tor instance from the quickstart
-        isolation = "account-1"       // optional: a circuit group for this client
+        tor = myTor
+        isolation = "account-1"       // optional
     }
 }
 
 suspend fun whoAmI(): String = client.get("https://check.torproject.org/api/ip").bodyAsText()
-// {"IsTor":true,"IP":"…"}; http://…onion/ works the same way
 ```
 
 HTTP/1.1 with keep-alive, request bodies, `HttpTimeout`'s connect timeout and every Ktor
@@ -267,11 +266,11 @@ different groups on the same circuit. Streams with the same key may share one:
 
 ```kotlin
 tor.connect("example.com", 80, isolation = "tab-1")
-tor.connect("example.com", 80, isolation = "tab-2")   // a different circuit group from tab-1
+tor.connect("example.com", 80, isolation = "tab-2")
 
-proxy.url(isolation = "tab-1")                        // same rule over SOCKS, if the client sends the credentials
+proxy.url(isolation = "tab-1")
 
-tor.newIdentity()   // retires the current circuits: later streams get new ones; open streams are untouched
+tor.newIdentity()
 ```
 
 This separates **circuits**, not application state. Reusing a key across accounts that must
@@ -374,7 +373,7 @@ import okhttp3.OkHttpClient
 import java.net.InetSocketAddress
 import java.net.Proxy
 
-val proxy = tor.startSocksProxy()              // suspend; `tor` is the instance from the quickstart
+val proxy = tor.startSocksProxy()
 val client = OkHttpClient.Builder()
     .proxy(Proxy(Proxy.Type.SOCKS, InetSocketAddress(proxy.host, proxy.port)))
     .build()
@@ -388,13 +387,12 @@ what you lose against `tor-okhttp` is per-client isolation and the password.
 <summary><b>Ktor over SOCKS</b></summary>
 
 ```kotlin
-// needs io.ktor:ktor-client-okhttp (or ktor-client-curl on Linux / Windows)
 import io.ktor.client.HttpClient
 import io.ktor.client.engine.ProxyBuilder
 import io.ktor.client.engine.okhttp.OkHttp
 
-val proxy = tor.startSocksProxy()              // suspend
-val client = HttpClient(OkHttp) {              // Android / JVM. On Linux & Windows: Curl
+val proxy = tor.startSocksProxy()
+val client = HttpClient(OkHttp) {
     engine { this.proxy = ProxyBuilder.socks(proxy.host, proxy.port) }
 }
 ```
@@ -408,9 +406,8 @@ Use the `OkHttp` or `Android` engine on Android and the JVM, and `Curl` on deskt
 <summary><b>Android WebView</b></summary>
 
 ```kotlin
-val proxy = tor.startSocksProxy()          // no password: Chromium cannot send one
+val proxy = tor.startSocksProxy()
 ProxyController.getInstance().setProxyOverride(
-    // Chromium's socks5:// already resolves hostnames on the proxy side.
     ProxyConfig.Builder().addProxyRule("socks5://${proxy.host}:${proxy.port}").build(),
     ContextCompat.getMainExecutor(context),
 ) { /* applied */ }
