@@ -305,9 +305,9 @@ directory are the same Tor client. Delete it when the user asks to start over.
 | Android (API 24+) | `androidTarget` (`arm64-v8a` `armeabi-v7a` `x86_64` `x86`) | `libtorkmp.so` in the AAR | API 36 emulator locally; API 34 emulator on a GitHub runner ([run](https://github.com/AndroidPoet/tor-kmp/actions/runs/40506760127)), all four modules incl. an obfs4 bootstrap |
 | iOS | `iosArm64` `iosSimulatorArm64` `iosX64` | static, inside the klib | iPhone 17 simulator locally; iPhone 16 simulator on a `macos-15` runner ([run](https://github.com/AndroidPoet/tor-kmp/actions/runs/40506760127)) |
 | macOS | `macosArm64` `macosX64` | static, inside the klib | Apple silicon, locally |
-| JVM | `jvm` | five libraries inside the jar | macOS (Apple silicon) locally; Windows x64 on a GitHub runner ([run](https://github.com/AndroidPoet/tor-kmp/actions/runs/40549342434), `torkmp.dll`) |
+| JVM | `jvm` | five libraries inside the jar | macOS (Apple silicon) locally; Windows x64 on a GitHub runner ([run](https://github.com/AndroidPoet/tor-kmp/actions/runs/40552187459), `torkmp.dll`) |
 | Linux | `linuxX64` `linuxArm64` | static, inside the klib | Debian 12 containers locally (both architectures); `ubuntu-latest` runner ([run](https://github.com/AndroidPoet/tor-kmp/actions/runs/40506760127)) |
-| Windows | `mingwX64` | static, inside the klib | `windows-latest` runner ([run](https://github.com/AndroidPoet/tor-kmp/actions/runs/40549342434)), `tor` and `tor-ktor` live suites |
+| Windows | `mingwX64` | static, inside the klib | `windows-latest` runner ([run](https://github.com/AndroidPoet/tor-kmp/actions/runs/40552187459)), `tor` and `tor-ktor` live suites |
 
 The live tests fetch an onion service and `check.torproject.org` through the real Tor
 network. [`verify.yml`](.github/workflows/verify.yml) runs them on GitHub's iOS simulator,
