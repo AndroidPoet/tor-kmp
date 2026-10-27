@@ -313,20 +313,20 @@ directory are the same Tor client. Delete it when the user asks to start over.
 
 ### Targets and verification
 
-| Platform | Gradle targets | Native library | Live tests last run (0.2.0) |
+| Platform | Gradle targets | Native library | Live tests last run (0.2.1 unless marked) |
 | --- | --- | --- | --- |
-| Android (API 24+) | `androidTarget` (`arm64-v8a` `armeabi-v7a` `x86_64` `x86`) | `libtorkmp.so` in the AAR | API 36 emulator locally; API 34 emulator on a GitHub runner ([run](https://github.com/AndroidPoet/tor-kmp/actions/runs/40506760127)), all four modules incl. an obfs4 bootstrap |
-| iOS | `iosArm64` `iosSimulatorArm64` `iosX64` | static, inside the klib | iPhone 17 simulator locally; iPhone 16 simulator on a `macos-15` runner ([run](https://github.com/AndroidPoet/tor-kmp/actions/runs/40506760127)) |
+| Android (API 24+) | `androidTarget` (`arm64-v8a` `armeabi-v7a` `x86_64` `x86`) | `libtorkmp.so` in the AAR | API 36 emulator locally, all four modules incl. an obfs4 bootstrap; API 34 emulator on a GitHub runner for 0.2.0 ([run](https://github.com/AndroidPoet/tor-kmp/actions/runs/40506760127)) |
+| iOS | `iosArm64` `iosSimulatorArm64` `iosX64` | static, inside the klib | iPhone 17 simulator locally; iPhone 16 simulator on a `macos-15` runner for 0.2.0 ([run](https://github.com/AndroidPoet/tor-kmp/actions/runs/40506760127)) |
 | macOS | `macosArm64` `macosX64` | static, inside the klib | Apple silicon, locally |
-| JVM | `jvm` | five libraries inside the jar | macOS (Apple silicon) locally; Windows x64 on a GitHub runner ([run](https://github.com/AndroidPoet/tor-kmp/actions/runs/40552187459), `torkmp.dll`) |
-| Linux | `linuxX64` `linuxArm64` | static, inside the klib | Debian 12 containers locally (both architectures); `ubuntu-latest` runner ([run](https://github.com/AndroidPoet/tor-kmp/actions/runs/40506760127)) |
-| Windows | `mingwX64` | static, inside the klib | `windows-latest` runner ([run](https://github.com/AndroidPoet/tor-kmp/actions/runs/40552187459)), `tor` and `tor-ktor` live suites |
+| JVM | `jvm` | five libraries inside the jar | macOS (Apple silicon) locally; Windows x64 on a GitHub runner ([run](https://github.com/AndroidPoet/tor-kmp/actions/runs/40578735131), `torkmp.dll`) |
+| Linux | `linuxX64` `linuxArm64` | static, inside the klib | `ubuntu-latest` runner ([run](https://github.com/AndroidPoet/tor-kmp/actions/runs/40579071890)); Debian 12 containers locally for 0.2.0 (both architectures) |
+| Windows | `mingwX64` | static, inside the klib | `windows-latest` runner ([run](https://github.com/AndroidPoet/tor-kmp/actions/runs/40578735131)), `tor` and `tor-ktor` live suites |
 
 The live tests fetch an onion service and `check.torproject.org` through the real Tor
 network. [`verify.yml`](.github/workflows/verify.yml) runs them on GitHub's iOS simulator,
 Android emulator, Linux and Windows runners; it is started by hand before a release
 (`gh workflow run verify.yml`, optionally `-f only=windows`) and the runs linked above are
-the ones for this version. [`build.yml`](.github/workflows/build.yml) (pull requests and
+the ones for this version, or where marked the previous one. [`build.yml`](.github/workflows/build.yml) (pull requests and
 manual runs) covers formatting, detekt, `apiCheck` across every target (which builds the
 Rust core for each) and the `tor` module's JVM live tests. Treat the table as the
 maintainer's last run, not as continuous assurance.
