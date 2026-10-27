@@ -94,6 +94,7 @@ subprojects {
                 "src/jniMain/kotlin",
                 "src/nativeMain/kotlin",
                 "src/jvmTest/kotlin",
+                "src/jniTest/kotlin",
             ).filter { it.exists() },
         )
     }

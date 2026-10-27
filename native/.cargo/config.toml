@@ -6,3 +6,25 @@ rustflags = ["-C", "link-arg=-Wl,-x,-S"]
 
 [target.x86_64-apple-darwin]
 rustflags = ["-C", "link-arg=-Wl,-x,-S"]
+
+# Everywhere else the regular strip is fine.
+[target.x86_64-unknown-linux-gnu]
+rustflags = ["-C", "strip=symbols"]
+
+[target.aarch64-unknown-linux-gnu]
+rustflags = ["-C", "strip=symbols"]
+
+[target.x86_64-pc-windows-gnu]
+rustflags = ["-C", "strip=symbols"]
+
+[target.aarch64-linux-android]
+rustflags = ["-C", "strip=symbols"]
+
+[target.armv7-linux-androideabi]
+rustflags = ["-C", "strip=symbols"]
+
+[target.x86_64-linux-android]
+rustflags = ["-C", "strip=symbols"]
+
+[target.i686-linux-android]
+rustflags = ["-C", "strip=symbols"]

@@ -5,3 +5,6 @@ staticLibraries = libtorkmp.a
 # System libraries the Rust standard library and Arti's dependencies link against
 # (from `cargo rustc -- --print native-static-libs`).
 linkerOpts.osx = -framework IOKit -framework CoreFoundation -liconv
+linkerOpts.ios = -liconv
+linkerOpts.linux = -lgcc_s -lutil -lrt -lpthread -lm -ldl -lc
+linkerOpts.mingw = -lntdll -ladvapi32 -lcredui -lkernel32 -lsecur32 -lbcrypt -luserenv -lws2_32 -ldbghelp

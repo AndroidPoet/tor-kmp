@@ -16,6 +16,9 @@ futures = "0.3"
 # Arti's TLS needs one crypto provider; ring cross-compiles without cmake.
 # Build xz from source so no target needs a system liblzma (iOS/Android have none).
 liblzma-sys = { version = "0.4", default-features = false, features = ["static"] }
+# libc 0.2.190 made proc_fdinfo macOS-only, but sysinfo 0.38 (via tor-memquota)
+# still uses it on iOS. Hold libc back until tor-memquota moves to sysinfo 0.39.
+libc = "=0.2.189"
 jni = { version = "0.21", optional = true }
 rustls = { version = "0.23", default-features = false, features = ["ring", "std"] }
 

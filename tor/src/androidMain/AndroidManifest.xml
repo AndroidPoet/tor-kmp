@@ -1,0 +1,5 @@
+<?xml version="1.0" encoding="utf-8"?>
+<manifest xmlns:android="http://schemas.android.com/apk/res/android">
+    <!-- Tor needs the network; merged into every app that uses the library. -->
+    <uses-permission android:name="android.permission.INTERNET" />
+</manifest>
