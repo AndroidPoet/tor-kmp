@@ -1,0 +1,32 @@
+[package]
+name = "torkmp"
+version = "0.1.0"
+edition = "2021"
+license = "MIT OR Apache-2.0"
+publish = false
+
+[lib]
+crate-type = ["staticlib", "cdylib", "rlib"]
+
+[dependencies]
+arti-client = { version = "=0.47.0", default-features = false, features = ["tokio", "rustls", "compression", "onion-service-client", "static-sqlite"] }
+tor-rtcompat = { version = "=0.47.0", default-features = false, features = ["tokio", "rustls"] }
+tokio = { version = "1", features = ["rt-multi-thread", "net", "io-util", "sync", "time", "macros"] }
+futures = "0.3"
+# Arti's TLS needs one crypto provider; ring cross-compiles without cmake.
+# Build xz from source so no target needs a system liblzma (iOS/Android have none).
+liblzma-sys = { version = "0.4", default-features = false, features = ["static"] }
+jni = { version = "0.21", optional = true }
+rustls = { version = "0.23", default-features = false, features = ["ring", "std"] }
+
+[features]
+# JNI exports for the JVM and Android builds; Kotlin/Native calls the C ABI directly.
+jni = ["dep:jni"]
+
+[profile.release]
+opt-level = "z"
+lto = true
+codegen-units = 1
+# Apple targets strip at link time instead (.cargo/config.toml).
+strip = false
+panic = "abort"

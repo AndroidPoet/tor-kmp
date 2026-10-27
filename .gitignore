@@ -1,0 +1,12 @@
+.gradle/
+.idea/
+build/
+**/build/
+.kotlin/
+local.properties
+*.iml
+*.keystore
+*.jks
+
+# Rust build output (native binaries are built by Gradle, never committed)
+native/target/

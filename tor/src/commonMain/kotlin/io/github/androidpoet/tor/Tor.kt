@@ -1,0 +1,213 @@
+package io.github.androidpoet.tor
+
+import io.github.androidpoet.tor.internal.NativeHandle
+import io.github.androidpoet.tor.internal.TorBridge
+import io.github.androidpoet.tor.internal.cancellableBlocking
+import kotlinx.coroutines.CancellationException
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.IO
+import kotlinx.coroutines.NonCancellable
+import kotlinx.coroutines.coroutineScope
+import kotlinx.coroutines.currentCoroutineContext
+import kotlinx.coroutines.delay
+import kotlinx.coroutines.flow.MutableStateFlow
+import kotlinx.coroutines.flow.StateFlow
+import kotlinx.coroutines.flow.asStateFlow
+import kotlinx.coroutines.isActive
+import kotlinx.coroutines.launch
+import kotlinx.coroutines.sync.Mutex
+import kotlinx.coroutines.sync.withLock
+import kotlinx.coroutines.withContext
+import kotlin.concurrent.atomics.AtomicBoolean
+import kotlin.concurrent.atomics.AtomicReference
+
+/**
+ * An embedded Tor client, running Arti (the Tor Project's Rust implementation)
+ * inside your process. No separate Tor app or binary is needed.
+ *
+ * ```
+ * val tor = Tor(TorConfig(dataDirectory = "$appFiles/tor"))
+ * val stream = tor.connect("example.com", 80) // bootstraps on first use
+ * ```
+ *
+ * Create one instance per data directory and keep it for as long as you need
+ * Tor; bootstrapping is the slow part. [close] it when done.
+ */
+public class Tor(
+    private val config: TorConfig,
+) : AutoCloseable {
+    private val mutableState = MutableStateFlow<TorState>(TorState.Idle)
+
+    /** Where the client is in its lifecycle, including bootstrap progress. */
+    public val state: StateFlow<TorState> = mutableState.asStateFlow()
+
+    private val handle = AtomicReference<NativeHandle?>(null)
+    private val closed = AtomicBoolean(false)
+    private val bootstrapLock = Mutex()
+
+    /**
+     * Connects to the Tor network, suspending until it is ready for traffic.
+     * Returns at once if already connected. Progress is published on [state].
+     *
+     * Cancelling the caller abandons the attempt and returns [state] to
+     * [TorState.Idle].
+     *
+     * @throws TorException if bootstrapping fails or the client is closed.
+     */
+    public suspend fun bootstrap() {
+        if (mutableState.value == TorState.Ready) return
+        bootstrapLock.withLock {
+            if (mutableState.value == TorState.Ready) return
+            val tor = handleOrCreate()
+            mutableState.value = TorState.Bootstrapping(progress = 0f, blockedReason = null)
+            try {
+                coroutineScope {
+                    val progress = launch { publishProgress(tor) }
+                    try {
+                        cancellableBlocking(onCancel = { tor.use(TorBridge::cancelBootstrap) }) {
+                            tor.use(TorBridge::bootstrap)
+                        }
+                    } finally {
+                        progress.cancel()
+                    }
+                }
+                mutableState.value = TorState.Ready
+            } catch (cancelled: CancellationException) {
+                if (!closed.load()) mutableState.value = TorState.Idle
+                throw cancelled
+            } catch (error: TorException) {
+                throw bootstrapFailure(error)
+            } finally {
+                // The progress poller may have published after close() set Closed.
+                if (closed.load()) mutableState.value = TorState.Closed
+            }
+        }
+    }
+
+    /**
+     * Opens a stream to [host]:[port] through Tor, bootstrapping first if needed.
+     *
+     * [host] is resolved by the exit relay, so no DNS query leaves the device.
+     * `.onion` addresses work. Streams with different [isolation] keys never share
+     * circuits; use one key per tab or account to keep them unlinkable.
+     *
+     * The stream outlives [close] of this client; close it yourself.
+     *
+     * @throws TorException if the connection fails or the client is closed.
+     */
+    public suspend fun connect(
+        host: String,
+        port: Int,
+        isolation: String? = null,
+    ): TorStream {
+        require(port in PORT_RANGE) { "port $port is not in $PORT_RANGE" }
+        bootstrap()
+        val tor = openHandle()
+        // Not cancellable mid-flight: a stream that opens after cancellation must
+        // still be freed, so wait for it and close it below.
+        val stream =
+            withContext(Dispatchers.IO + NonCancellable) {
+                TorStream(tor.use { TorBridge.connect(it, host, port, isolation) })
+            }
+        if (!currentCoroutineContext().isActive) {
+            stream.close()
+            throw CancellationException("connect cancelled")
+        }
+        return stream
+    }
+
+    /**
+     * Starts a SOCKS5 proxy on 127.0.0.1 for clients that can only use a proxy,
+     * bootstrapping first if needed. [port] 0 picks a free port. Calling it again
+     * returns the running proxy.
+     *
+     * @throws TorException if the port cannot be bound or the client is closed.
+     */
+    public suspend fun startSocksProxy(port: Int = 0): SocksProxy {
+        require(port == 0 || port in PORT_RANGE) { "port $port is not 0 or in $PORT_RANGE" }
+        bootstrap()
+        val tor = openHandle()
+        val bound = withContext(Dispatchers.IO) { tor.use { TorBridge.startSocks(it, port) } }
+        return SocksProxy(host = "127.0.0.1", port = bound)
+    }
+
+    /** Stops the SOCKS proxy, ending its connections. No-op if none is running. */
+    public fun stopSocksProxy() {
+        handle.load()?.takeUnless { it.isClosed }?.use(TorBridge::stopSocks)
+    }
+
+    /**
+     * Routes every stream opened from now on over fresh circuits, unlinkable to
+     * earlier ones, and forgets all isolation keys. Open streams are left alone.
+     */
+    public fun newIdentity() {
+        handle.load()?.takeUnless { it.isClosed }?.use(TorBridge::newIdentity)
+    }
+
+    /**
+     * Shuts the client down: cancels a running bootstrap and stops the SOCKS
+     * proxy. Idempotent. Open [TorStream]s keep working until closed.
+     */
+    override fun close() {
+        if (!closed.compareAndSet(expectedValue = false, newValue = true)) return
+        handle.load()?.close()
+        mutableState.value = TorState.Closed
+    }
+
+    private suspend fun handleOrCreate(): NativeHandle {
+        handle.load()?.let { return it }
+        if (closed.load()) throw TorException("Tor is closed")
+        val created =
+            withContext(Dispatchers.IO) {
+                NativeHandle(
+                    pointer = TorBridge.create(config.stateDirectory, config.cacheDirectory),
+                    name = "Tor",
+                    shutdown = { tor ->
+                        TorBridge.cancelBootstrap(tor)
+                        TorBridge.stopSocks(tor)
+                    },
+                    free = TorBridge::destroy,
+                )
+            }
+        handle.store(created)
+        // close() may have run before the store; it then saw no handle to close.
+        if (closed.load()) {
+            created.close()
+            throw TorException("Tor is closed")
+        }
+        return created
+    }
+
+    /** Records why bootstrap stopped and returns what [bootstrap] should throw. */
+    private suspend fun bootstrapFailure(error: TorException): Exception =
+        when {
+            closed.load() -> error
+            // Cancelling the caller makes Arti return an error; report it as cancellation.
+            !currentCoroutineContext().isActive -> {
+                mutableState.value = TorState.Idle
+                CancellationException("bootstrap cancelled", error)
+            }
+            else -> {
+                mutableState.value = TorState.Failed(error)
+                error
+            }
+        }
+
+    private fun openHandle(): NativeHandle = handle.load() ?: throw TorException("Tor is closed")
+
+    private suspend fun publishProgress(tor: NativeHandle) {
+        while (true) {
+            mutableState.value =
+                TorState.Bootstrapping(
+                    progress = tor.use(TorBridge::progress),
+                    blockedReason = tor.use(TorBridge::blockedReason),
+                )
+            delay(PROGRESS_INTERVAL_MS)
+        }
+    }
+
+    private companion object {
+        val PORT_RANGE = 1..65_535
+        const val PROGRESS_INTERVAL_MS = 250L
+    }
+}

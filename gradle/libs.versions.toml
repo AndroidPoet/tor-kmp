@@ -1,0 +1,26 @@
+[versions]
+kotlin = "2.2.21"
+agp = "8.13.2"
+coroutines = "1.10.2"
+vanniktech = "0.30.0"
+detekt = "1.23.7"
+kover = "0.9.1"
+binaryCompatibilityValidator = "0.18.1"
+dokka = "1.9.20"
+spotless = "8.6.0"
+ktlint = "1.5.0"
+
+[libraries]
+kotlin-test = { module = "org.jetbrains.kotlin:kotlin-test", version.ref = "kotlin" }
+kotlinx-coroutines-core = { module = "org.jetbrains.kotlinx:kotlinx-coroutines-core", version.ref = "coroutines" }
+kotlinx-coroutines-test = { module = "org.jetbrains.kotlinx:kotlinx-coroutines-test", version.ref = "coroutines" }
+
+[plugins]
+android-library = { id = "com.android.library", version.ref = "agp" }
+kotlin-multiplatform = { id = "org.jetbrains.kotlin.multiplatform", version.ref = "kotlin" }
+vanniktech-publish = { id = "com.vanniktech.maven.publish", version.ref = "vanniktech" }
+detekt = { id = "io.gitlab.arturbosch.detekt", version.ref = "detekt" }
+kover = { id = "org.jetbrains.kotlinx.kover", version.ref = "kover" }
+binary-compatibility-validator = { id = "org.jetbrains.kotlinx.binary-compatibility-validator", version.ref = "binaryCompatibilityValidator" }
+dokka = { id = "org.jetbrains.dokka", version.ref = "dokka" }
+spotless = { id = "com.diffplug.spotless", version.ref = "spotless" }

@@ -1,0 +1,104 @@
+// Klib ABI Dump
+// Targets: [macosArm64]
+// Rendering settings:
+// - Signature version: 2
+// - Show manifest properties: true
+// - Show declarations: true
+
+// Library unique name: <tor-kmp:tor>
+sealed interface io.github.androidpoet.tor/TorState { // io.github.androidpoet.tor/TorState|null[0]
+    final class Bootstrapping : io.github.androidpoet.tor/TorState { // io.github.androidpoet.tor/TorState.Bootstrapping|null[0]
+        constructor <init>(kotlin/Float, kotlin/String?) // io.github.androidpoet.tor/TorState.Bootstrapping.<init>|<init>(kotlin.Float;kotlin.String?){}[0]
+
+        final val blockedReason // io.github.androidpoet.tor/TorState.Bootstrapping.blockedReason|{}blockedReason[0]
+            final fun <get-blockedReason>(): kotlin/String? // io.github.androidpoet.tor/TorState.Bootstrapping.blockedReason.<get-blockedReason>|<get-blockedReason>(){}[0]
+        final val progress // io.github.androidpoet.tor/TorState.Bootstrapping.progress|{}progress[0]
+            final fun <get-progress>(): kotlin/Float // io.github.androidpoet.tor/TorState.Bootstrapping.progress.<get-progress>|<get-progress>(){}[0]
+
+        final fun component1(): kotlin/Float // io.github.androidpoet.tor/TorState.Bootstrapping.component1|component1(){}[0]
+        final fun component2(): kotlin/String? // io.github.androidpoet.tor/TorState.Bootstrapping.component2|component2(){}[0]
+        final fun copy(kotlin/Float = ..., kotlin/String? = ...): io.github.androidpoet.tor/TorState.Bootstrapping // io.github.androidpoet.tor/TorState.Bootstrapping.copy|copy(kotlin.Float;kotlin.String?){}[0]
+        final fun equals(kotlin/Any?): kotlin/Boolean // io.github.androidpoet.tor/TorState.Bootstrapping.equals|equals(kotlin.Any?){}[0]
+        final fun hashCode(): kotlin/Int // io.github.androidpoet.tor/TorState.Bootstrapping.hashCode|hashCode(){}[0]
+        final fun toString(): kotlin/String // io.github.androidpoet.tor/TorState.Bootstrapping.toString|toString(){}[0]
+    }
+
+    final class Failed : io.github.androidpoet.tor/TorState { // io.github.androidpoet.tor/TorState.Failed|null[0]
+        constructor <init>(io.github.androidpoet.tor/TorException) // io.github.androidpoet.tor/TorState.Failed.<init>|<init>(io.github.androidpoet.tor.TorException){}[0]
+
+        final val error // io.github.androidpoet.tor/TorState.Failed.error|{}error[0]
+            final fun <get-error>(): io.github.androidpoet.tor/TorException // io.github.androidpoet.tor/TorState.Failed.error.<get-error>|<get-error>(){}[0]
+
+        final fun component1(): io.github.androidpoet.tor/TorException // io.github.androidpoet.tor/TorState.Failed.component1|component1(){}[0]
+        final fun copy(io.github.androidpoet.tor/TorException = ...): io.github.androidpoet.tor/TorState.Failed // io.github.androidpoet.tor/TorState.Failed.copy|copy(io.github.androidpoet.tor.TorException){}[0]
+        final fun equals(kotlin/Any?): kotlin/Boolean // io.github.androidpoet.tor/TorState.Failed.equals|equals(kotlin.Any?){}[0]
+        final fun hashCode(): kotlin/Int // io.github.androidpoet.tor/TorState.Failed.hashCode|hashCode(){}[0]
+        final fun toString(): kotlin/String // io.github.androidpoet.tor/TorState.Failed.toString|toString(){}[0]
+    }
+
+    final object Closed : io.github.androidpoet.tor/TorState { // io.github.androidpoet.tor/TorState.Closed|null[0]
+        final fun equals(kotlin/Any?): kotlin/Boolean // io.github.androidpoet.tor/TorState.Closed.equals|equals(kotlin.Any?){}[0]
+        final fun hashCode(): kotlin/Int // io.github.androidpoet.tor/TorState.Closed.hashCode|hashCode(){}[0]
+        final fun toString(): kotlin/String // io.github.androidpoet.tor/TorState.Closed.toString|toString(){}[0]
+    }
+
+    final object Idle : io.github.androidpoet.tor/TorState { // io.github.androidpoet.tor/TorState.Idle|null[0]
+        final fun equals(kotlin/Any?): kotlin/Boolean // io.github.androidpoet.tor/TorState.Idle.equals|equals(kotlin.Any?){}[0]
+        final fun hashCode(): kotlin/Int // io.github.androidpoet.tor/TorState.Idle.hashCode|hashCode(){}[0]
+        final fun toString(): kotlin/String // io.github.androidpoet.tor/TorState.Idle.toString|toString(){}[0]
+    }
+
+    final object Ready : io.github.androidpoet.tor/TorState { // io.github.androidpoet.tor/TorState.Ready|null[0]
+        final fun equals(kotlin/Any?): kotlin/Boolean // io.github.androidpoet.tor/TorState.Ready.equals|equals(kotlin.Any?){}[0]
+        final fun hashCode(): kotlin/Int // io.github.androidpoet.tor/TorState.Ready.hashCode|hashCode(){}[0]
+        final fun toString(): kotlin/String // io.github.androidpoet.tor/TorState.Ready.toString|toString(){}[0]
+    }
+}
+
+final class io.github.androidpoet.tor/SocksProxy { // io.github.androidpoet.tor/SocksProxy|null[0]
+    constructor <init>(kotlin/String, kotlin/Int) // io.github.androidpoet.tor/SocksProxy.<init>|<init>(kotlin.String;kotlin.Int){}[0]
+
+    final val host // io.github.androidpoet.tor/SocksProxy.host|{}host[0]
+        final fun <get-host>(): kotlin/String // io.github.androidpoet.tor/SocksProxy.host.<get-host>|<get-host>(){}[0]
+    final val port // io.github.androidpoet.tor/SocksProxy.port|{}port[0]
+        final fun <get-port>(): kotlin/Int // io.github.androidpoet.tor/SocksProxy.port.<get-port>|<get-port>(){}[0]
+
+    final fun component1(): kotlin/String // io.github.androidpoet.tor/SocksProxy.component1|component1(){}[0]
+    final fun component2(): kotlin/Int // io.github.androidpoet.tor/SocksProxy.component2|component2(){}[0]
+    final fun copy(kotlin/String = ..., kotlin/Int = ...): io.github.androidpoet.tor/SocksProxy // io.github.androidpoet.tor/SocksProxy.copy|copy(kotlin.String;kotlin.Int){}[0]
+    final fun equals(kotlin/Any?): kotlin/Boolean // io.github.androidpoet.tor/SocksProxy.equals|equals(kotlin.Any?){}[0]
+    final fun hashCode(): kotlin/Int // io.github.androidpoet.tor/SocksProxy.hashCode|hashCode(){}[0]
+    final fun toString(): kotlin/String // io.github.androidpoet.tor/SocksProxy.toString|toString(){}[0]
+    final fun url(kotlin/String? = ...): kotlin/String // io.github.androidpoet.tor/SocksProxy.url|url(kotlin.String?){}[0]
+}
+
+final class io.github.androidpoet.tor/Tor : kotlin/AutoCloseable { // io.github.androidpoet.tor/Tor|null[0]
+    constructor <init>(io.github.androidpoet.tor/TorConfig) // io.github.androidpoet.tor/Tor.<init>|<init>(io.github.androidpoet.tor.TorConfig){}[0]
+
+    final val state // io.github.androidpoet.tor/Tor.state|{}state[0]
+        final fun <get-state>(): kotlinx.coroutines.flow/StateFlow<io.github.androidpoet.tor/TorState> // io.github.androidpoet.tor/Tor.state.<get-state>|<get-state>(){}[0]
+
+    final fun close() // io.github.androidpoet.tor/Tor.close|close(){}[0]
+    final fun newIdentity() // io.github.androidpoet.tor/Tor.newIdentity|newIdentity(){}[0]
+    final fun stopSocksProxy() // io.github.androidpoet.tor/Tor.stopSocksProxy|stopSocksProxy(){}[0]
+    final suspend fun bootstrap() // io.github.androidpoet.tor/Tor.bootstrap|bootstrap(){}[0]
+    final suspend fun connect(kotlin/String, kotlin/Int, kotlin/String? = ...): io.github.androidpoet.tor/TorStream // io.github.androidpoet.tor/Tor.connect|connect(kotlin.String;kotlin.Int;kotlin.String?){}[0]
+    final suspend fun startSocksProxy(kotlin/Int = ...): io.github.androidpoet.tor/SocksProxy // io.github.androidpoet.tor/Tor.startSocksProxy|startSocksProxy(kotlin.Int){}[0]
+}
+
+final class io.github.androidpoet.tor/TorConfig { // io.github.androidpoet.tor/TorConfig|null[0]
+    constructor <init>(kotlin/String) // io.github.androidpoet.tor/TorConfig.<init>|<init>(kotlin.String){}[0]
+
+    final val dataDirectory // io.github.androidpoet.tor/TorConfig.dataDirectory|{}dataDirectory[0]
+        final fun <get-dataDirectory>(): kotlin/String // io.github.androidpoet.tor/TorConfig.dataDirectory.<get-dataDirectory>|<get-dataDirectory>(){}[0]
+}
+
+final class io.github.androidpoet.tor/TorException : kotlin/Exception { // io.github.androidpoet.tor/TorException|null[0]
+    constructor <init>(kotlin/String, kotlin/Throwable? = ...) // io.github.androidpoet.tor/TorException.<init>|<init>(kotlin.String;kotlin.Throwable?){}[0]
+}
+
+final class io.github.androidpoet.tor/TorStream : kotlin/AutoCloseable { // io.github.androidpoet.tor/TorStream|null[0]
+    final fun close() // io.github.androidpoet.tor/TorStream.close|close(){}[0]
+    final suspend fun read(kotlin/ByteArray, kotlin/Int = ..., kotlin/Int = ...): kotlin/Int // io.github.androidpoet.tor/TorStream.read|read(kotlin.ByteArray;kotlin.Int;kotlin.Int){}[0]
+    final suspend fun write(kotlin/ByteArray, kotlin/Int = ..., kotlin/Int = ...) // io.github.androidpoet.tor/TorStream.write|write(kotlin.ByteArray;kotlin.Int;kotlin.Int){}[0]
+}

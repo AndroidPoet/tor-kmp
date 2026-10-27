@@ -1,0 +1,7 @@
+package = io.github.androidpoet.tor.cinterop
+headers = torkmp.h
+headerFilter = torkmp.h
+staticLibraries = libtorkmp.a
+# System libraries the Rust standard library and Arti's dependencies link against
+# (from `cargo rustc -- --print native-static-libs`).
+linkerOpts.osx = -framework IOKit -framework CoreFoundation -liconv

@@ -1,0 +1,8 @@
+# Strip Apple binaries in the linker rather than with a separate `strip` pass:
+# Xcode 27's `strip` corrupts dylibs ("mis-aligned LINKEDIT string pool") and
+# dyld refuses to load them. -x drops local symbols, -S debug info.
+[target.aarch64-apple-darwin]
+rustflags = ["-C", "link-arg=-Wl,-x,-S"]
+
+[target.x86_64-apple-darwin]
+rustflags = ["-C", "link-arg=-Wl,-x,-S"]
