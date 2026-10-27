@@ -43,7 +43,10 @@ val rustBuilds = mutableMapOf<String, TaskProvider<Exec>>()
 /** Builds libtorkmp for [triple] once and copies the libraries to build/rust/<triple>. */
 fun rustBuild(triple: String): TaskProvider<Exec> =
     rustBuilds.getOrPut(triple) {
-        val zig = "linux" in triple || "windows" in triple
+        // zig cross-builds Linux and Windows from any host; on a Windows host the
+        // Windows library is built natively with the toolchain's own mingw gcc.
+        val hostIsWindows = System.getProperty("os.name").orEmpty().startsWith("Windows")
+        val zig = "linux" in triple || ("windows" in triple && !hostIsWindows)
         // Linux binaries target glibc 2.17 so they run on every mainstream distro.
         val cargoTarget = if ("linux-gnu" in triple) "$triple.2.17" else triple
         val outputDir = rustOut.map { it.dir(triple) }

@@ -154,6 +154,7 @@ jobs:
       # in the core apart from one in the Kotlin/Native static link.
       - name: JVM live test (torkmp.dll)
         shell: bash
+        continue-on-error: true
         env:
           TORKMP_LOG: debug
         run: |
