@@ -47,10 +47,12 @@ kotlin {
             api(project(":tor"))
             api(libs.ktor.client.core)
             implementation(libs.ktor.http.cio)
+            implementation(libs.ktor.websockets)
         }
         commonTest.dependencies {
             implementation(libs.kotlin.test)
             implementation(libs.kotlinx.coroutines.test)
+            implementation(libs.ktor.client.websockets)
         }
         androidInstrumentedTest.dependencies {
             implementation(libs.androidx.test.runner)

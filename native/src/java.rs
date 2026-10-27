@@ -6,7 +6,7 @@ use std::ffi::{CStr, CString};
 use std::ptr;
 
 use jni::objects::{JByteArray, JClass, JString};
-use jni::sys::{jfloat, jint, jlong, jstring};
+use jni::sys::{jbyteArray, jfloat, jint, jlong, jstring};
 use jni::JNIEnv;
 
 use crate::*;
@@ -56,17 +56,67 @@ pub extern "system" fn Java_io_github_androidpoet_tor_internal_TorBridge_create(
     _class: JClass,
     state_dir: JString,
     cache_dir: JString,
+    settings: JString,
 ) -> jlong {
-    let (Some(state_dir), Some(cache_dir)) =
-        (c_string(&mut env, &state_dir), c_string(&mut env, &cache_dir))
-    else {
+    let (Some(state_dir), Some(cache_dir)) = (
+        c_string(&mut env, &state_dir),
+        c_string(&mut env, &cache_dir),
+    ) else {
         return 0;
     };
-    let tor = unsafe { torkmp_create(state_dir.as_ptr(), cache_dir.as_ptr()) };
+    let settings = if settings.is_null() {
+        None
+    } else {
+        match c_string(&mut env, &settings) {
+            Some(json) => Some(json),
+            None => return 0,
+        }
+    };
+    let settings_ptr = settings.as_ref().map_or(ptr::null(), |json| json.as_ptr());
+    let tor = unsafe { torkmp_create(state_dir.as_ptr(), cache_dir.as_ptr(), settings_ptr) };
     if tor.is_null() {
         throw_last_error(&mut env);
     }
     tor as jlong
+}
+
+/// Returns null for a valid bridge line, otherwise the reason it is not.
+#[no_mangle]
+pub extern "system" fn Java_io_github_androidpoet_tor_internal_TorBridge_bridgeCheck(
+    mut env: JNIEnv,
+    _class: JClass,
+    line: JString,
+) -> jstring {
+    let Some(line) = c_string(&mut env, &line) else {
+        return ptr::null_mut();
+    };
+    unsafe {
+        let message = torkmp_bridge_check(line.as_ptr());
+        if message.is_null() {
+            return ptr::null_mut();
+        }
+        let text = CStr::from_ptr(message).to_string_lossy().into_owned();
+        torkmp_string_free(message);
+        env.new_string(text)
+            .map(|s| s.into_raw())
+            .unwrap_or(ptr::null_mut())
+    }
+}
+
+#[no_mangle]
+pub extern "system" fn Java_io_github_androidpoet_tor_internal_TorBridge_randomBytes(
+    mut env: JNIEnv,
+    _class: JClass,
+    length: jint,
+) -> jbyteArray {
+    let mut bytes = vec![0u8; length.max(0) as usize];
+    if unsafe { torkmp_random_bytes(bytes.as_mut_ptr(), bytes.len()) } != 0 {
+        throw_last_error(&mut env);
+        return ptr::null_mut();
+    }
+    env.byte_array_from_slice(&bytes)
+        .map(|array| array.into_raw())
+        .unwrap_or(ptr::null_mut())
 }
 
 #[no_mangle]
@@ -210,7 +260,11 @@ pub extern "system" fn Java_io_github_androidpoet_tor_internal_TorBridge_read(
 ) -> jint {
     let mut chunk = vec![0u8; length.max(0) as usize];
     let count = unsafe {
-        torkmp_stream_read(stream as *const TorKmpStream, chunk.as_mut_ptr(), chunk.len())
+        torkmp_stream_read(
+            stream as *const TorKmpStream,
+            chunk.as_mut_ptr(),
+            chunk.len(),
+        )
     };
     if count < 0 {
         throw_last_error(&mut env);
@@ -238,12 +292,19 @@ pub extern "system" fn Java_io_github_androidpoet_tor_internal_TorBridge_write(
     length: jint,
 ) {
     let mut chunk = vec![0i8; length.max(0) as usize];
-    if env.get_byte_array_region(&buffer, offset, &mut chunk).is_err() {
+    if env
+        .get_byte_array_region(&buffer, offset, &mut chunk)
+        .is_err()
+    {
         throw(&mut env, "range outside buffer");
         return;
     }
     let written = unsafe {
-        torkmp_stream_write(stream as *const TorKmpStream, chunk.as_ptr().cast(), chunk.len())
+        torkmp_stream_write(
+            stream as *const TorKmpStream,
+            chunk.as_ptr().cast(),
+            chunk.len(),
+        )
     };
     if written != 0 {
         throw_last_error(&mut env);

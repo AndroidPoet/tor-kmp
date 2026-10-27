@@ -8,11 +8,11 @@ public final class io/github/androidpoet/tor/ktor/TorEngineConfig : io/ktor/clie
 	public static final field DEFAULT_MAX_IDLE_PER_HOST I
 	public field tor Lio/github/androidpoet/tor/Tor;
 	public fun <init> ()V
-	public final fun getIsolation ()Ljava/lang/String;
+	public final fun getIsolation-Wmp8DZE ()Ljava/lang/String;
 	public final fun getKeepAliveMillis ()J
 	public final fun getMaxIdlePerHost ()I
 	public final fun getTor ()Lio/github/androidpoet/tor/Tor;
-	public final fun setIsolation (Ljava/lang/String;)V
+	public final fun setIsolation-gZ1pdEI (Ljava/lang/String;)V
 	public final fun setKeepAliveMillis (J)V
 	public final fun setMaxIdlePerHost (I)V
 	public final fun setTor (Lio/github/androidpoet/tor/Tor;)V

@@ -4,6 +4,54 @@ All notable changes to this project are documented here. The format is based on
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and this project
 adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## 0.2.0 - 2026-10-27
+
+### Added
+
+- **Bridges and pluggable transports.** `TorConfig(bridges, transports)` takes
+  `Bridge.parse(line)` values (validated by Arti up front) and
+  `PluggableTransport(protocols, executable)` entries; Arti launches the
+  transport as a child process. Direct bridges work on every target; transports
+  on Android, the JVM, macOS, Linux and Windows. iOS cannot spawn processes and
+  rejects them with a clear message.
+- **`tor-lyrebird`** (Android, JVM): the Tor Project's lyrebird 0.8.1 (obfs4,
+  webtunnel, meek_lite, snowflake) built from source into the artifact.
+  `Lyrebird.transport()` / `Lyrebird.transport(context)` returns it as a
+  `PluggableTransport`. Live-tested against Tor Browser's built-in obfs4 bridges.
+- **WebSockets** in `tor-ktor`: install Ktor's `WebSockets` plugin and use
+  `client.webSocket(...)` as with any engine, including `wss://` and onion hosts.
+- `Isolation` value class and `Isolation.random()`; `SocksAuth` with
+  `Generated` (default), `Password` and `None`.
+
+### Changed
+
+- **Breaking:** isolation keys are `Isolation` instead of `String?` in
+  `Tor.connect`, `Tor.connectTls`, `SocksProxy.url`, `TorEngineConfig.isolation`
+  and `OkHttpClient.Builder.tor`. The `String` overloads remain, deprecated;
+  a `String?` variable needs `key?.let(::Isolation)`.
+- **Breaking:** `startSocksProxy()` now authenticates by default with a random
+  192-bit password (`SocksAuth.Generated`). Pass `SocksAuth.None` for a client
+  that cannot send credentials. `startSocksProxy(port, password)` remains,
+  deprecated.
+- `TorConfig` gained `bridges` and `transports`; the JSON it hands to the
+  native side is internal.
+
+### Fixed
+
+- A stream whose `BEGIN` times out at the exit is retried twice on a fresh circuit
+  instead of failing at once; Arti keeps the slow circuit and makes one attempt per
+  call, which left every connect failing for a while behind a congested bridge.
+- A TLS peer that closes without `close_notify` now reads as end of stream, as in
+  browsers, instead of failing the read with "peer closed connection without
+  sending TLS close_notify".
+- Native errors now carry their whole cause chain, so a failure deep in Arti names
+  its root cause (a locked state file, an unreadable directory) instead of only the
+  layer that wrapped it.
+- `tor-ktor` delivered a response only once the server closed the connection or
+  a large buffer filled: the stream-to-channel pump never flushed. Responses on
+  keep-alive connections now arrive as soon as they are read (a POST to httpbin
+  dropped from 64 s to 4 s in the live test), and WebSocket frames flow at all.
+
 ## 0.1.2 - 2026-10-27
 
 ### Added

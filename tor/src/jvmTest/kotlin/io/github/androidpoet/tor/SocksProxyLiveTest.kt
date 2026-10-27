@@ -3,17 +3,22 @@ package io.github.androidpoet.tor
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.test.runTest
 import kotlinx.coroutines.withContext
+import java.net.Authenticator
 import java.net.InetSocketAddress
+import java.net.PasswordAuthentication
 import java.net.Proxy
 import java.net.Socket
 import java.net.URI
 import kotlin.test.Test
 import kotlin.test.assertContentEquals
+import kotlin.test.assertEquals
+import kotlin.test.assertNotNull
 import kotlin.test.assertTrue
 import kotlin.time.Duration.Companion.minutes
 
 /**
- * Live: a stock JDK HTTPS client through the SOCKS proxy is seen by the Tor Project as Tor.
+ * Live: a stock JDK HTTPS client through the SOCKS proxy, authenticating with the
+ * generated password, is seen by the Tor Project as Tor.
  *
  * This proves the traffic exits through Tor, not that DNS stays inside it: desktop
  * `HttpURLConnection` resolves hostnames locally before talking to the proxy, so it is
@@ -21,12 +26,19 @@ import kotlin.time.Duration.Companion.minutes
  */
 class SocksProxyLiveTest {
     @Test
-    fun test_startSocksProxy_httpsThroughProxy_reportsIsTor() =
+    fun test_startSocksProxy_generatedPassword_httpsThroughProxy_reportsIsTor() =
         runTest(timeout = 3.minutes) {
             withContext(Dispatchers.Default) {
                 Tor(TorConfig(testDataDirectory() + "-socks")).use { tor ->
                     val socks = tor.startSocksProxy()
+                    val password = assertNotNull(socks.password, "the default is a generated password")
+                    assertEquals(48, password.length)
                     val proxy = Proxy(Proxy.Type.SOCKS, InetSocketAddress(socks.host, socks.port))
+                    Authenticator.setDefault(
+                        object : Authenticator() {
+                            override fun getPasswordAuthentication() = PasswordAuthentication("tab-1", password.toCharArray())
+                        },
+                    )
 
                     val body =
                         withContext(Dispatchers.IO) {
@@ -47,7 +59,7 @@ class SocksProxyLiveTest {
         runTest(timeout = 3.minutes) {
             withContext(Dispatchers.Default) {
                 Tor(TorConfig(testDataDirectory() + "-socks-auth")).use { tor ->
-                    val socks = tor.startSocksProxy(password = "hunter2")
+                    val socks = tor.startSocksProxy(auth = SocksAuth.Password("hunter2"))
 
                     withContext(Dispatchers.IO) {
                         // Greeting offering only "no authentication": refused outright.

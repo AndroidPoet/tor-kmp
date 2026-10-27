@@ -3,11 +3,15 @@ package io.github.androidpoet.tor.ktor
 import io.github.androidpoet.tor.Tor
 import io.github.androidpoet.tor.TorConfig
 import io.ktor.client.HttpClient
+import io.ktor.client.plugins.websocket.WebSockets
+import io.ktor.client.plugins.websocket.webSocket
 import io.ktor.client.request.get
 import io.ktor.client.request.post
 import io.ktor.client.request.setBody
 import io.ktor.client.statement.bodyAsText
 import io.ktor.http.HttpStatusCode
+import io.ktor.websocket.Frame
+import io.ktor.websocket.readText
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.test.runTest
 import kotlinx.coroutines.withContext
@@ -70,19 +74,44 @@ class TorEngineLiveTest {
             assertTrue(response.bodyAsText().contains("hello from tor-kmp"))
         }
 
+    @Test
+    fun test_webSocket_echoServer_roundTripsAFrame() =
+        live { client ->
+            val message = "ping from tor-kmp"
+            var echoed: String? = null
+            client.webSocket("wss://$WS_ECHO_HOST/") {
+                send(Frame.Text(message))
+                // The echo service greets first ("Request served by …"), then echoes.
+                repeat(MAX_FRAMES) {
+                    val frame = incoming.receive() as? Frame.Text ?: return@repeat
+                    if (frame.readText() == message) {
+                        echoed = message
+                        return@webSocket
+                    }
+                }
+            }
+
+            assertEquals(message, echoed)
+        }
+
     private fun live(block: suspend (HttpClient) -> Unit) = live { client, _ -> block(client) }
 
     private fun live(block: suspend (HttpClient, Tor) -> Unit) =
         runTest(timeout = 4.minutes) {
             withContext(Dispatchers.Default) {
                 Tor(TorConfig(testDataDirectory())).use { tor ->
-                    HttpClient(TorEngine) { engine { this.tor = tor } }.use { block(it, tor) }
+                    HttpClient(TorEngine) {
+                        engine { this.tor = tor }
+                        install(WebSockets)
+                    }.use { block(it, tor) }
                 }
             }
         }
 
     private companion object {
         const val TORPROJECT_ONION = "2gzyxa5ihm7nsggfxnu52rck2vv4rvmdlkiu3zzui5du4xyclen53wid.onion"
+        const val WS_ECHO_HOST = "echo.websocket.org"
+        const val MAX_FRAMES = 4
     }
 }
 

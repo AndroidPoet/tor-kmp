@@ -19,3 +19,5 @@ rootProject.name = "tor-kmp"
 include(":tor")
 include(":tor-ktor")
 include(":tor-okhttp")
+include(":tor-lyrebird")
+include(":samples:cli")

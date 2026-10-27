@@ -13,7 +13,9 @@
 typedef struct TorKmp TorKmp;
 typedef struct TorKmpStream TorKmpStream;
 
-TorKmp *torkmp_create(const char *state_dir, const char *cache_dir);
+TorKmp *torkmp_create(const char *state_dir, const char *cache_dir, const char *settings);
+char *torkmp_bridge_check(const char *line);
+int32_t torkmp_random_bytes(uint8_t *buffer, size_t len);
 int32_t torkmp_bootstrap(const TorKmp *tor);
 void torkmp_cancel_bootstrap(const TorKmp *tor);
 void torkmp_status(const TorKmp *tor, float *fraction, int32_t *ready);

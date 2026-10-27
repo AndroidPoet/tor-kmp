@@ -1,5 +1,6 @@
 package io.github.androidpoet.tor.ktor
 
+import io.github.androidpoet.tor.Isolation
 import io.github.androidpoet.tor.Tor
 import io.github.androidpoet.tor.TorStream
 import io.ktor.utils.io.ByteReadChannel
@@ -32,6 +33,8 @@ internal class TorConnection(
                     val count = stream.read(buffer)
                     if (count < 0) break
                     channel.writeFully(buffer, 0, count)
+                    // Ktor 3 channels hand nothing to the reader until a flush or close.
+                    channel.flush()
                 }
             }.channel
 
@@ -69,7 +72,7 @@ internal data class ConnectionKey(
 /** Idle connections kept for reuse, per [ConnectionKey]. */
 internal class ConnectionPool(
     private val tor: Tor,
-    private val isolation: String?,
+    private val isolation: Isolation?,
     private val keepAliveMillis: Long,
     private val maxIdlePerHost: Int,
     private val scope: CoroutineScope,

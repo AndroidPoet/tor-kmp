@@ -4,8 +4,8 @@ public final class io/github/androidpoet/tor/okhttp/TorDns : okhttp3/Dns {
 }
 
 public final class io/github/androidpoet/tor/okhttp/TorSocketFactory : javax/net/SocketFactory {
-	public fun <init> (Lio/github/androidpoet/tor/Tor;Ljava/lang/String;)V
 	public synthetic fun <init> (Lio/github/androidpoet/tor/Tor;Ljava/lang/String;ILkotlin/jvm/internal/DefaultConstructorMarker;)V
+	public synthetic fun <init> (Lio/github/androidpoet/tor/Tor;Ljava/lang/String;Lkotlin/jvm/internal/DefaultConstructorMarker;)V
 	public fun createSocket ()Ljava/net/Socket;
 	public fun createSocket (Ljava/lang/String;I)Ljava/net/Socket;
 	public fun createSocket (Ljava/lang/String;ILjava/net/InetAddress;I)Ljava/net/Socket;
@@ -15,6 +15,7 @@ public final class io/github/androidpoet/tor/okhttp/TorSocketFactory : javax/net
 
 public final class io/github/androidpoet/tor/okhttp/TorSocketFactoryKt {
 	public static final fun tor (Lokhttp3/OkHttpClient$Builder;Lio/github/androidpoet/tor/Tor;Ljava/lang/String;)Lokhttp3/OkHttpClient$Builder;
-	public static synthetic fun tor$default (Lokhttp3/OkHttpClient$Builder;Lio/github/androidpoet/tor/Tor;Ljava/lang/String;ILjava/lang/Object;)Lokhttp3/OkHttpClient$Builder;
+	public static final fun tor-jrcUDeo (Lokhttp3/OkHttpClient$Builder;Lio/github/androidpoet/tor/Tor;Ljava/lang/String;)Lokhttp3/OkHttpClient$Builder;
+	public static synthetic fun tor-jrcUDeo$default (Lokhttp3/OkHttpClient$Builder;Lio/github/androidpoet/tor/Tor;Ljava/lang/String;ILjava/lang/Object;)Lokhttp3/OkHttpClient$Builder;
 }
 

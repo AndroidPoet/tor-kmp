@@ -49,9 +49,10 @@ In the `commonMain` dependencies of a Kotlin Multiplatform module (or `dependenc
 Android or JVM module):
 
 ```kotlin
-implementation("io.github.androidpoet:tor:0.1.2")          // the client: streams, TLS, SOCKS
-implementation("io.github.androidpoet:tor-ktor:0.1.2")     // optional: a Ktor engine, no proxy
-implementation("io.github.androidpoet:tor-okhttp:0.1.2")   // optional: OkHttp on Tor sockets (Android, JVM)
+implementation("io.github.androidpoet:tor:0.2.0")          // the client: streams, TLS, SOCKS, bridges
+implementation("io.github.androidpoet:tor-ktor:0.2.0")     // optional: a Ktor engine, no proxy
+implementation("io.github.androidpoet:tor-okhttp:0.2.0")   // optional: OkHttp on Tor sockets (Android, JVM)
+implementation("io.github.androidpoet:tor-lyrebird:0.2.0") // optional: obfs4/webtunnel/snowflake client (Android, JVM)
 ```
 
 The artifacts are on Maven Central (`repositories { mavenCentral() }`). The native Tor
@@ -148,6 +149,7 @@ on top of `connect()`, which is exactly what `tor-okhttp` does.
 ### Ktor (`tor-ktor`, every target)
 
 ```kotlin
+import io.github.androidpoet.tor.Isolation
 import io.github.androidpoet.tor.ktor.TorEngine
 import io.ktor.client.HttpClient
 import io.ktor.client.request.get
@@ -156,25 +158,27 @@ import io.ktor.client.statement.bodyAsText
 val client = HttpClient(TorEngine) {
     engine {
         tor = myTor
-        isolation = "account-1"       // optional
+        isolation = Isolation("account-1")   // optional
     }
 }
 
 suspend fun whoAmI(): String = client.get("https://check.torproject.org/api/ip").bodyAsText()
 ```
 
-HTTP/1.1 with keep-alive, request bodies, `HttpTimeout`'s connect timeout and every Ktor
-plugin that sits on top of an engine (content negotiation, logging, auth, retry). TLS is done
-inside the Tor client against Mozilla's roots; there is no platform trust store or pinning
-here. Not supported yet: WebSockets, HTTP/2.
+HTTP/1.1 with keep-alive, request bodies, WebSockets (install Ktor's `WebSockets` plugin and
+call `client.webSocket("wss://…")` as usual, onion hosts included), `HttpTimeout`'s connect
+timeout and every Ktor plugin that sits on top of an engine (content negotiation, logging,
+auth, retry). TLS is done inside the Tor client against Mozilla's roots; there is no platform
+trust store or pinning here. Not supported: HTTP/2.
 
 ### OkHttp (`tor-okhttp`, Android and JVM)
 
 ```kotlin
+import io.github.androidpoet.tor.Isolation
 import io.github.androidpoet.tor.okhttp.tor
 import okhttp3.OkHttpClient
 
-val client = OkHttpClient.Builder().tor(myTor, isolation = "account-1").build()
+val client = OkHttpClient.Builder().tor(myTor, isolation = Isolation("account-1")).build()
 ```
 
 OkHttp keeps doing TLS itself (platform trust store, `CertificatePinner`, HTTP/2 via ALPN);
@@ -189,20 +193,23 @@ which runs before it; call `tor.bootstrap()` yourself to bound or display that.
 ### SOCKS proxy
 
 ```kotlin
-val proxy = tor.startSocksProxy(password = randomSecret())   // port 0: any free port
-proxy.url("tab-1")        // socks5h://tab-1:<secret>@127.0.0.1:41823
-proxy.url()               // socks5h://:<secret>@127.0.0.1:41823, the default group
-proxy.close()             // or tor.stopSocksProxy()
+val proxy = tor.startSocksProxy()                 // port 0: any free port; a random password
+proxy.url(Isolation("tab-1"))                     // socks5h://tab-1:<password>@127.0.0.1:41823
+proxy.url()                                       // socks5h://:<password>@127.0.0.1:41823, the default group
+proxy.close()                                     // or tor.stopSocksProxy()
+
+tor.startSocksProxy(auth = SocksAuth.None)        // only for clients that cannot authenticate
 ```
 
-- **Set a password** whenever the client can send SOCKS credentials. A loopback port is
-  reachable by every process on the device; with a password the proxy refuses anyone who
-  does not present it (RFC 1929), and the username is the isolation key. Chromium WebViews
-  cannot send credentials, so Android WebView needs an open proxy: keep its lifetime short
-  and `close()` it when the WebView goes away.
-- **Isolation over SOCKS needs credentials on the wire.** `url("tab-1")` puts them in the
-  URL; a client that connects without authenticating lands in the default group even if you
-  started the proxy without a password.
+- **Authenticated by default.** A loopback port is reachable by every process on the
+  device, so the proxy generates a 192-bit password (`SocksAuth.Generated`) and refuses
+  anyone who does not present it (RFC 1929); the username is the isolation key. Pass
+  `SocksAuth.Password("…")` to choose it, or `SocksAuth.None` for a client that cannot send
+  credentials: Chromium WebViews cannot, so Android WebView needs an open proxy. Keep its
+  lifetime short and `close()` it when the WebView goes away.
+- **Isolation over SOCKS needs credentials on the wire.** `url(Isolation("tab-1"))` puts
+  them in the URL; a client that connects without authenticating lands in the default group
+  even if you started the proxy with `SocksAuth.None`.
 - It speaks **SOCKS5 `CONNECT`** with hostname, IPv4 and IPv6 addresses. No `BIND`, no
   `UDP ASSOCIATE`, no SOCKS4. Credentials are 1–255 bytes each (SOCKS5's limit).
 - **Hostnames must reach the proxy unresolved** (`socks5h://`, "proxy DNS"). A client that
@@ -211,6 +218,59 @@ proxy.close()             // or tor.stopSocksProxy()
   client resolves locally. [Which client, which path](#which-client-which-path) lists the
   ones that are known to.
 - `startSocksProxy()` a second time returns the running proxy, whatever the arguments.
+
+## Bridges and censorship
+
+On a network that blocks the public relays, `state` stays in `Bootstrapping` with
+`BlockageKind.FILTERING`. Bridges are unlisted relays; pluggable transports disguise the
+connection to them. Users get bridge lines from <https://bridges.torproject.org>, the
+Telegram bot `@GetBridgesBot` or by emailing `bridges@torproject.org`, and your app passes
+them in:
+
+```kotlin
+import io.github.androidpoet.tor.Bridge
+import io.github.androidpoet.tor.TorConfig
+import io.github.androidpoet.tor.lyrebird.Lyrebird
+import io.github.androidpoet.tor.lyrebird.transport
+
+val tor =
+    Tor(
+        TorConfig(
+            dataDirectory = "$appPrivateDir/tor",
+            bridges = userBridgeLines.map(Bridge::parse),       // IllegalArgumentException names a bad line
+            transports = listOf(Lyrebird.transport(context)),    // Android; Lyrebird.transport() on the JVM
+        ),
+    )
+```
+
+- **Direct bridges** (`Bridge 1.2.3.4:443 FINGERPRINT`) need no transport and work on every
+  target, iOS included.
+- **obfs4, webtunnel, meek_lite, snowflake** lines need a pluggable-transport client, a
+  separate executable Arti launches and talks to. `tor-lyrebird` bundles the Tor Project's
+  lyrebird 0.8.1 for Android (as `liblyrebird.so`, run from the app's native-library
+  directory, the one place Android 10+ still allows an app to execute from) and for the JVM
+  on macOS, Linux and Windows (unpacked to `~/.cache/tor-kmp/lyrebird-0.8.1` on first use,
+  re-verified by SHA-256 on every launch). It adds 13–19 MB per architecture. On Android the
+  app module must ask for native libraries to be extracted at install time, since a library
+  cannot set that for it:
+
+  ```kotlin
+  android {
+      packaging { jniLibs { useLegacyPackaging = true } }
+  }
+  ```
+ Any other PT 1.0 client works through `PluggableTransport(protocols,
+  executablePath)`.
+- **iOS** cannot run a child process, so `TorConfig` rejects transports there. Direct
+  bridges still work; a built-in transport is on the roadmap.
+- With a non-empty bridge list Arti uses **only** the bridges. `Bridge.parse` validates each
+  line with Arti's own parser, and `TorConfig` checks that every transport a line names is
+  provided, so mistakes surface before any network activity.
+- Give users **several bridge lines**. Arti keeps retrying a bridge whose obfs4 handshake
+  fails, so a single dead bridge leaves `bootstrap()` at a few percent indefinitely; wrap
+  it in `withTimeout` and watch `progress` if you need to give up. The three built-in
+  obfs4 lines from `bridges.torproject.org/moat/circumvention/builtin` bootstrap in about
+  80 s in this repo's tests.
 
 ## Platform notes
 
@@ -260,18 +320,22 @@ binaries add roughly the arm64 figure to your app after linking.
 
 ## Isolation and new identity
 
-Tor keeps unrelated activity on separate circuits. Pass an `isolation` key per tab, account
+Tor keeps unrelated activity on separate circuits. Pass an `Isolation` key per tab, account
 or conversation; the key becomes an Arti isolation group, and Arti never places streams from
 different groups on the same circuit. Streams with the same key may share one:
 
 ```kotlin
-tor.connect("example.com", 80, isolation = "tab-1")
-tor.connect("example.com", 80, isolation = "tab-2")
+tor.connect("example.com", 80, isolation = Isolation("tab-1"))
+tor.connect("example.com", 80, isolation = Isolation("tab-2"))
+tor.connect("example.com", 80, isolation = Isolation.random())   // linkable to nothing else
 
-proxy.url(isolation = "tab-1")
+proxy.url(Isolation("tab-1"))
 
 tor.newIdentity()
 ```
+
+`Isolation` validates its key (1–255 UTF-8 bytes, no NUL: it doubles as a SOCKS username)
+and `Isolation.random()` draws 128 bits from the OS. The key is not a secret.
 
 This separates **circuits**, not application state. Reusing a key across accounts that must
 stay unlinkable undoes it, and cookies, caches and sessions are your app's to keep apart.
@@ -459,8 +523,10 @@ sessions are unchanged, which also means sites can still link you by them.
 is the key. Chromium WebViews cannot, so every WebView shares one group.
 
 **How long is the first connection?** 20–40 s on a cold directory, a few seconds afterwards
-when you reuse the data directory. Bridges and pluggable transports are not supported yet,
-so on a network that blocks Tor the bootstrap stalls with `BlockageKind.FILTERING`.
+when you reuse the data directory. Through obfs4 bridges, about a minute more.
+
+**My users' network blocks Tor.** The bootstrap stalls with `BlockageKind.FILTERING`; give
+them a way to paste bridge lines and restart with [bridges](#bridges-and-censorship).
 
 **Can I run two `Tor` instances?** Yes, with different data directories. Never share one
 directory between live instances.
@@ -470,10 +536,10 @@ directory between live instances.
 ## Alternatives
 
 - **[kmp-tor](https://github.com/05nelsonm/kmp-tor)** runs the C Tor daemon and drives it
-  through the control port, so it offers what C Tor offers, including bridges and pluggable
-  transports; see its README for its target list. Choose it if you need features Arti does
-  not have yet. tor-kmp is in-process Arti behind a stream API, with no daemon, control port
-  or local port required.
+  through the control port, so it offers what C Tor offers (onion services you host, for
+  one); see its README for its target list. Choose it if you need features Arti does not
+  have yet. tor-kmp is in-process Arti behind a stream API, with no daemon, control port or
+  local port required.
 - **[Orbot](https://orbot.app/)** (Android) is a separate app that provides Tor as a system
   service, with a VPN mode that covers every app. Choose it when users already run it or
   when you want device-wide routing rather than a library.
@@ -512,11 +578,13 @@ and Gradle compiles it per target, so no binary is committed to this repository.
 
 - **Pins**: `arti-client = "=0.47.0"` with a committed `Cargo.lock`; the Gradle Rust tasks
   and the release workflow invoke `cargo --locked`, so a release matches the lockfile.
-- **Toolchain** for the published 0.1.x binaries: Rust 1.93.0 (pinned in
+- **Toolchain** for the published 0.2.x binaries: Rust 1.93.0 (pinned in
   [`native/rust-toolchain.toml`](native/rust-toolchain.toml)), Zig 0.17.0 and cargo-zigbuild
   0.24.0 (Linux and Windows cross-builds, glibc 2.17 floor), cargo-ndk 4.1.2 with NDK
-  28.2.13676358, Xcode 27. [`publish.yml`](.github/workflows/publish.yml) pins the same
-  versions. The builds are not yet bit-for-bit reproducible across machines.
+  28.2.13676358, Xcode 27; Go 1.26 for `tor-lyrebird`, which is built from the upstream
+  tag `lyrebird-0.8.1` (pure Go on desktop, NDK clang on Android).
+  [`publish.yml`](.github/workflows/publish.yml) pins the same versions. The builds are not
+  yet bit-for-bit reproducible across machines.
 - **Verifying what you download**: Maven Central serves PGP signatures and checksums next to
   every artifact. Native libraries live inside the artifacts, so one signature covers the
   Kotlin code and the Rust code it calls.
@@ -526,8 +594,9 @@ and Gradle compiles it per target, so no binary is committed to this repository.
 ## Build & test
 
 You need Rust (`rustup` picks the pinned toolchain up from `native/rust-toolchain.toml`),
-plus [cargo-ndk](https://github.com/bbqsrc/cargo-ndk) for Android and
-[cargo-zigbuild](https://github.com/rust-cross/cargo-zigbuild) with `zig` for Linux and Windows.
+plus [cargo-ndk](https://github.com/bbqsrc/cargo-ndk) for Android,
+[cargo-zigbuild](https://github.com/rust-cross/cargo-zigbuild) with `zig` for Linux and
+Windows, and Go 1.26 for `tor-lyrebird` (Gradle clones and builds lyrebird itself).
 
 ```sh
 ./gradlew spotlessCheck detekt apiCheck              # gates: no Tor traffic, but apiCheck builds every target
@@ -535,6 +604,7 @@ plus [cargo-ndk](https://github.com/bbqsrc/cargo-ndk) for Android and
 ./gradlew iosSimulatorArm64Test                      # live tests, iOS simulator (-Ptor.simulator="iPhone 17")
 ./gradlew connectedAndroidTest                       # live tests, Android device or emulator
 ./gradlew :tor:linkDebugTestLinuxArm64               # then run build/bin/linuxArm64/debugTest/test.kexe in a container
+./gradlew :samples:cli:run                           # the sample: bootstrap, then the check page three ways
 ```
 
 The `*Test` tasks talk to the real Tor network, so they need internet access; the gates do

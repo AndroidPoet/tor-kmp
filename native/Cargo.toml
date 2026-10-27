@@ -10,7 +10,7 @@ publish = false
 crate-type = ["staticlib", "cdylib"]
 
 [dependencies]
-arti-client = { version = "=0.47.0", default-features = false, features = ["tokio", "rustls", "compression", "onion-service-client", "static-sqlite"] }
+arti-client = { version = "=0.47.0", default-features = false, features = ["tokio", "rustls", "compression", "onion-service-client", "static-sqlite", "bridge-client", "pt-client"] }
 tor-rtcompat = { version = "=0.47.0", default-features = false, features = ["tokio", "rustls"] }
 tokio = { version = "1", features = ["rt-multi-thread", "net", "io-util", "sync", "time", "macros"] }
 futures = "0.3"
@@ -25,6 +25,11 @@ rustls = { version = "0.23", default-features = false, features = ["ring", "std"
 # TLS over Tor streams for torkmp_connect_tls; same rustls Arti already links.
 futures-rustls = { version = "0.26", default-features = false, features = ["ring", "tls12"] }
 webpki-roots = "1"
+# Bridge and pluggable-transport settings arrive from Kotlin as one JSON document.
+serde = { version = "1", features = ["derive"] }
+serde_json = "1"
+# OS randomness for generated SOCKS passwords and isolation keys.
+getrandom = "0.3"
 
 [features]
 # JNI exports for the JVM and Android builds; Kotlin/Native calls the C ABI directly.

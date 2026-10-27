@@ -10,8 +10,8 @@ final class io.github.androidpoet.tor.ktor/TorEngineConfig : io.ktor.client.engi
     constructor <init>() // io.github.androidpoet.tor.ktor/TorEngineConfig.<init>|<init>(){}[0]
 
     final var isolation // io.github.androidpoet.tor.ktor/TorEngineConfig.isolation|{}isolation[0]
-        final fun <get-isolation>(): kotlin/String? // io.github.androidpoet.tor.ktor/TorEngineConfig.isolation.<get-isolation>|<get-isolation>(){}[0]
-        final fun <set-isolation>(kotlin/String?) // io.github.androidpoet.tor.ktor/TorEngineConfig.isolation.<set-isolation>|<set-isolation>(kotlin.String?){}[0]
+        final fun <get-isolation>(): io.github.androidpoet.tor/Isolation? // io.github.androidpoet.tor.ktor/TorEngineConfig.isolation.<get-isolation>|<get-isolation>(){}[0]
+        final fun <set-isolation>(io.github.androidpoet.tor/Isolation?) // io.github.androidpoet.tor.ktor/TorEngineConfig.isolation.<set-isolation>|<set-isolation>(io.github.androidpoet.tor.Isolation?){}[0]
     final var keepAliveMillis // io.github.androidpoet.tor.ktor/TorEngineConfig.keepAliveMillis|{}keepAliveMillis[0]
         final fun <get-keepAliveMillis>(): kotlin/Long // io.github.androidpoet.tor.ktor/TorEngineConfig.keepAliveMillis.<get-keepAliveMillis>|<get-keepAliveMillis>(){}[0]
         final fun <set-keepAliveMillis>(kotlin/Long) // io.github.androidpoet.tor.ktor/TorEngineConfig.keepAliveMillis.<set-keepAliveMillis>|<set-keepAliveMillis>(kotlin.Long){}[0]

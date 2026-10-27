@@ -78,7 +78,11 @@ impl Drop for SocksServer {
     }
 }
 
-async fn serve(mut client: TcpStream, circuits: &Circuits, password: Option<&[u8]>) -> io::Result<()> {
+async fn serve(
+    mut client: TcpStream,
+    circuits: &Circuits,
+    password: Option<&[u8]>,
+) -> io::Result<()> {
     client.set_nodelay(true)?;
     let isolation = negotiate_auth(&mut client, password).await?;
 
@@ -111,7 +115,10 @@ async fn serve(mut client: TcpStream, circuits: &Circuits, password: Option<&[u8
 
 /// Picks an auth method; returns the isolation key when credentials were sent.
 /// With `required_password`, only authenticated clients with that password get in.
-async fn negotiate_auth(client: &mut TcpStream, required_password: Option<&[u8]>) -> io::Result<Option<String>> {
+async fn negotiate_auth(
+    client: &mut TcpStream,
+    required_password: Option<&[u8]>,
+) -> io::Result<Option<String>> {
     let mut greeting = [0u8; 2];
     client.read_exact(&mut greeting).await?;
     if greeting[0] != VERSION {

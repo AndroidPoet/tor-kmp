@@ -22,6 +22,31 @@ final enum class io.github.androidpoet.tor/BlockageKind : kotlin/Enum<io.github.
     final fun values(): kotlin/Array<io.github.androidpoet.tor/BlockageKind> // io.github.androidpoet.tor/BlockageKind.values|values#static(){}[0]
 }
 
+sealed interface io.github.androidpoet.tor/SocksAuth { // io.github.androidpoet.tor/SocksAuth|null[0]
+    final class Password : io.github.androidpoet.tor/SocksAuth { // io.github.androidpoet.tor/SocksAuth.Password|null[0]
+        constructor <init>(kotlin/String) // io.github.androidpoet.tor/SocksAuth.Password.<init>|<init>(kotlin.String){}[0]
+
+        final val value // io.github.androidpoet.tor/SocksAuth.Password.value|{}value[0]
+            final fun <get-value>(): kotlin/String // io.github.androidpoet.tor/SocksAuth.Password.value.<get-value>|<get-value>(){}[0]
+
+        final fun equals(kotlin/Any?): kotlin/Boolean // io.github.androidpoet.tor/SocksAuth.Password.equals|equals(kotlin.Any?){}[0]
+        final fun hashCode(): kotlin/Int // io.github.androidpoet.tor/SocksAuth.Password.hashCode|hashCode(){}[0]
+        final fun toString(): kotlin/String // io.github.androidpoet.tor/SocksAuth.Password.toString|toString(){}[0]
+    }
+
+    final object Generated : io.github.androidpoet.tor/SocksAuth { // io.github.androidpoet.tor/SocksAuth.Generated|null[0]
+        final fun equals(kotlin/Any?): kotlin/Boolean // io.github.androidpoet.tor/SocksAuth.Generated.equals|equals(kotlin.Any?){}[0]
+        final fun hashCode(): kotlin/Int // io.github.androidpoet.tor/SocksAuth.Generated.hashCode|hashCode(){}[0]
+        final fun toString(): kotlin/String // io.github.androidpoet.tor/SocksAuth.Generated.toString|toString(){}[0]
+    }
+
+    final object None : io.github.androidpoet.tor/SocksAuth { // io.github.androidpoet.tor/SocksAuth.None|null[0]
+        final fun equals(kotlin/Any?): kotlin/Boolean // io.github.androidpoet.tor/SocksAuth.None.equals|equals(kotlin.Any?){}[0]
+        final fun hashCode(): kotlin/Int // io.github.androidpoet.tor/SocksAuth.None.hashCode|hashCode(){}[0]
+        final fun toString(): kotlin/String // io.github.androidpoet.tor/SocksAuth.None.toString|toString(){}[0]
+    }
+}
+
 sealed interface io.github.androidpoet.tor/TorState { // io.github.androidpoet.tor/TorState|null[0]
     final class Bootstrapping : io.github.androidpoet.tor/TorState { // io.github.androidpoet.tor/TorState.Bootstrapping|null[0]
         constructor <init>(kotlin/Float, io.github.androidpoet.tor/Blockage?) // io.github.androidpoet.tor/TorState.Bootstrapping.<init>|<init>(kotlin.Float;io.github.androidpoet.tor.Blockage?){}[0]
@@ -79,6 +104,36 @@ final class io.github.androidpoet.tor/Blockage { // io.github.androidpoet.tor/Bl
     final fun toString(): kotlin/String // io.github.androidpoet.tor/Blockage.toString|toString(){}[0]
 }
 
+final class io.github.androidpoet.tor/Bridge { // io.github.androidpoet.tor/Bridge|null[0]
+    final val line // io.github.androidpoet.tor/Bridge.line|{}line[0]
+        final fun <get-line>(): kotlin/String // io.github.androidpoet.tor/Bridge.line.<get-line>|<get-line>(){}[0]
+    final val transport // io.github.androidpoet.tor/Bridge.transport|{}transport[0]
+        final fun <get-transport>(): kotlin/String? // io.github.androidpoet.tor/Bridge.transport.<get-transport>|<get-transport>(){}[0]
+
+    final fun equals(kotlin/Any?): kotlin/Boolean // io.github.androidpoet.tor/Bridge.equals|equals(kotlin.Any?){}[0]
+    final fun hashCode(): kotlin/Int // io.github.androidpoet.tor/Bridge.hashCode|hashCode(){}[0]
+    final fun toString(): kotlin/String // io.github.androidpoet.tor/Bridge.toString|toString(){}[0]
+
+    final object Companion { // io.github.androidpoet.tor/Bridge.Companion|null[0]
+        final fun parse(kotlin/String): io.github.androidpoet.tor/Bridge // io.github.androidpoet.tor/Bridge.Companion.parse|parse(kotlin.String){}[0]
+    }
+}
+
+final class io.github.androidpoet.tor/PluggableTransport { // io.github.androidpoet.tor/PluggableTransport|null[0]
+    constructor <init>(kotlin.collections/List<kotlin/String>, kotlin/String, kotlin.collections/List<kotlin/String> = ...) // io.github.androidpoet.tor/PluggableTransport.<init>|<init>(kotlin.collections.List<kotlin.String>;kotlin.String;kotlin.collections.List<kotlin.String>){}[0]
+
+    final val arguments // io.github.androidpoet.tor/PluggableTransport.arguments|{}arguments[0]
+        final fun <get-arguments>(): kotlin.collections/List<kotlin/String> // io.github.androidpoet.tor/PluggableTransport.arguments.<get-arguments>|<get-arguments>(){}[0]
+    final val executable // io.github.androidpoet.tor/PluggableTransport.executable|{}executable[0]
+        final fun <get-executable>(): kotlin/String // io.github.androidpoet.tor/PluggableTransport.executable.<get-executable>|<get-executable>(){}[0]
+    final val protocols // io.github.androidpoet.tor/PluggableTransport.protocols|{}protocols[0]
+        final fun <get-protocols>(): kotlin.collections/List<kotlin/String> // io.github.androidpoet.tor/PluggableTransport.protocols.<get-protocols>|<get-protocols>(){}[0]
+
+    final fun equals(kotlin/Any?): kotlin/Boolean // io.github.androidpoet.tor/PluggableTransport.equals|equals(kotlin.Any?){}[0]
+    final fun hashCode(): kotlin/Int // io.github.androidpoet.tor/PluggableTransport.hashCode|hashCode(){}[0]
+    final fun toString(): kotlin/String // io.github.androidpoet.tor/PluggableTransport.toString|toString(){}[0]
+}
+
 final class io.github.androidpoet.tor/SocksProxy : kotlin/AutoCloseable { // io.github.androidpoet.tor/SocksProxy|null[0]
     final val host // io.github.androidpoet.tor/SocksProxy.host|{}host[0]
         final fun <get-host>(): kotlin/String // io.github.androidpoet.tor/SocksProxy.host.<get-host>|<get-host>(){}[0]
@@ -91,7 +146,8 @@ final class io.github.androidpoet.tor/SocksProxy : kotlin/AutoCloseable { // io.
     final fun equals(kotlin/Any?): kotlin/Boolean // io.github.androidpoet.tor/SocksProxy.equals|equals(kotlin.Any?){}[0]
     final fun hashCode(): kotlin/Int // io.github.androidpoet.tor/SocksProxy.hashCode|hashCode(){}[0]
     final fun toString(): kotlin/String // io.github.androidpoet.tor/SocksProxy.toString|toString(){}[0]
-    final fun url(kotlin/String? = ...): kotlin/String // io.github.androidpoet.tor/SocksProxy.url|url(kotlin.String?){}[0]
+    final fun url(io.github.androidpoet.tor/Isolation? = ...): kotlin/String // io.github.androidpoet.tor/SocksProxy.url|url(io.github.androidpoet.tor.Isolation?){}[0]
+    final fun url(kotlin/String): kotlin/String // io.github.androidpoet.tor/SocksProxy.url|url(kotlin.String){}[0]
 }
 
 final class io.github.androidpoet.tor/Tor : kotlin/AutoCloseable { // io.github.androidpoet.tor/Tor|null[0]
@@ -108,16 +164,25 @@ final class io.github.androidpoet.tor/Tor : kotlin/AutoCloseable { // io.github.
     final fun newIdentity() // io.github.androidpoet.tor/Tor.newIdentity|newIdentity(){}[0]
     final fun stopSocksProxy() // io.github.androidpoet.tor/Tor.stopSocksProxy|stopSocksProxy(){}[0]
     final suspend fun bootstrap() // io.github.androidpoet.tor/Tor.bootstrap|bootstrap(){}[0]
-    final suspend fun connect(kotlin/String, kotlin/Int, kotlin/String? = ...): io.github.androidpoet.tor/TorStream // io.github.androidpoet.tor/Tor.connect|connect(kotlin.String;kotlin.Int;kotlin.String?){}[0]
-    final suspend fun connectTls(kotlin/String, kotlin/Int = ..., kotlin/String? = ...): io.github.androidpoet.tor/TorStream // io.github.androidpoet.tor/Tor.connectTls|connectTls(kotlin.String;kotlin.Int;kotlin.String?){}[0]
-    final suspend fun startSocksProxy(kotlin/Int = ..., kotlin/String? = ...): io.github.androidpoet.tor/SocksProxy // io.github.androidpoet.tor/Tor.startSocksProxy|startSocksProxy(kotlin.Int;kotlin.String?){}[0]
+    final suspend fun connect(kotlin/String, kotlin/Int, io.github.androidpoet.tor/Isolation? = ...): io.github.androidpoet.tor/TorStream // io.github.androidpoet.tor/Tor.connect|connect(kotlin.String;kotlin.Int;io.github.androidpoet.tor.Isolation?){}[0]
+    final suspend fun connect(kotlin/String, kotlin/Int, kotlin/String): io.github.androidpoet.tor/TorStream // io.github.androidpoet.tor/Tor.connect|connect(kotlin.String;kotlin.Int;kotlin.String){}[0]
+    final suspend fun connectTls(kotlin/String, kotlin/Int = ..., io.github.androidpoet.tor/Isolation? = ...): io.github.androidpoet.tor/TorStream // io.github.androidpoet.tor/Tor.connectTls|connectTls(kotlin.String;kotlin.Int;io.github.androidpoet.tor.Isolation?){}[0]
+    final suspend fun connectTls(kotlin/String, kotlin/Int, kotlin/String): io.github.androidpoet.tor/TorStream // io.github.androidpoet.tor/Tor.connectTls|connectTls(kotlin.String;kotlin.Int;kotlin.String){}[0]
+    final suspend fun startSocksProxy(kotlin/Int = ..., io.github.androidpoet.tor/SocksAuth = ...): io.github.androidpoet.tor/SocksProxy // io.github.androidpoet.tor/Tor.startSocksProxy|startSocksProxy(kotlin.Int;io.github.androidpoet.tor.SocksAuth){}[0]
+    final suspend fun startSocksProxy(kotlin/Int, kotlin/String?): io.github.androidpoet.tor/SocksProxy // io.github.androidpoet.tor/Tor.startSocksProxy|startSocksProxy(kotlin.Int;kotlin.String?){}[0]
 }
 
 final class io.github.androidpoet.tor/TorConfig { // io.github.androidpoet.tor/TorConfig|null[0]
-    constructor <init>(kotlin/String) // io.github.androidpoet.tor/TorConfig.<init>|<init>(kotlin.String){}[0]
+    constructor <init>(kotlin/String, kotlin.collections/List<io.github.androidpoet.tor/Bridge> = ..., kotlin.collections/List<io.github.androidpoet.tor/PluggableTransport> = ...) // io.github.androidpoet.tor/TorConfig.<init>|<init>(kotlin.String;kotlin.collections.List<io.github.androidpoet.tor.Bridge>;kotlin.collections.List<io.github.androidpoet.tor.PluggableTransport>){}[0]
 
+    final val bridges // io.github.androidpoet.tor/TorConfig.bridges|{}bridges[0]
+        final fun <get-bridges>(): kotlin.collections/List<io.github.androidpoet.tor/Bridge> // io.github.androidpoet.tor/TorConfig.bridges.<get-bridges>|<get-bridges>(){}[0]
     final val dataDirectory // io.github.androidpoet.tor/TorConfig.dataDirectory|{}dataDirectory[0]
         final fun <get-dataDirectory>(): kotlin/String // io.github.androidpoet.tor/TorConfig.dataDirectory.<get-dataDirectory>|<get-dataDirectory>(){}[0]
+    final val transports // io.github.androidpoet.tor/TorConfig.transports|{}transports[0]
+        final fun <get-transports>(): kotlin.collections/List<io.github.androidpoet.tor/PluggableTransport> // io.github.androidpoet.tor/TorConfig.transports.<get-transports>|<get-transports>(){}[0]
+
+    final fun toString(): kotlin/String // io.github.androidpoet.tor/TorConfig.toString|toString(){}[0]
 }
 
 final class io.github.androidpoet.tor/TorException : kotlin/Exception { // io.github.androidpoet.tor/TorException|null[0]
@@ -128,4 +193,19 @@ final class io.github.androidpoet.tor/TorStream : kotlin/AutoCloseable { // io.g
     final fun close() // io.github.androidpoet.tor/TorStream.close|close(){}[0]
     final suspend fun read(kotlin/ByteArray, kotlin/Int = ..., kotlin/Int = ...): kotlin/Int // io.github.androidpoet.tor/TorStream.read|read(kotlin.ByteArray;kotlin.Int;kotlin.Int){}[0]
     final suspend fun write(kotlin/ByteArray, kotlin/Int = ..., kotlin/Int = ...) // io.github.androidpoet.tor/TorStream.write|write(kotlin.ByteArray;kotlin.Int;kotlin.Int){}[0]
+}
+
+final value class io.github.androidpoet.tor/Isolation { // io.github.androidpoet.tor/Isolation|null[0]
+    constructor <init>(kotlin/String) // io.github.androidpoet.tor/Isolation.<init>|<init>(kotlin.String){}[0]
+
+    final val key // io.github.androidpoet.tor/Isolation.key|{}key[0]
+        final fun <get-key>(): kotlin/String // io.github.androidpoet.tor/Isolation.key.<get-key>|<get-key>(){}[0]
+
+    final fun equals(kotlin/Any?): kotlin/Boolean // io.github.androidpoet.tor/Isolation.equals|equals(kotlin.Any?){}[0]
+    final fun hashCode(): kotlin/Int // io.github.androidpoet.tor/Isolation.hashCode|hashCode(){}[0]
+    final fun toString(): kotlin/String // io.github.androidpoet.tor/Isolation.toString|toString(){}[0]
+
+    final object Companion { // io.github.androidpoet.tor/Isolation.Companion|null[0]
+        final fun random(): io.github.androidpoet.tor/Isolation // io.github.androidpoet.tor/Isolation.Companion.random|random(){}[0]
+    }
 }

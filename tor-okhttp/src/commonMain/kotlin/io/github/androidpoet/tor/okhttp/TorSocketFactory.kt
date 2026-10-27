@@ -1,5 +1,6 @@
 package io.github.androidpoet.tor.okhttp
 
+import io.github.androidpoet.tor.Isolation
 import io.github.androidpoet.tor.Tor
 import io.github.androidpoet.tor.TorStream
 import kotlinx.coroutines.CoroutineScope
@@ -29,7 +30,7 @@ import javax.net.SocketFactory
  * Routes an [OkHttpClient] through [Tor] with no proxy and no local port.
  *
  * ```
- * val client = OkHttpClient.Builder().tor(tor, isolation = "account-1").build()
+ * val client = OkHttpClient.Builder().tor(tor, isolation = Isolation("account-1")).build()
  * ```
  *
  * OkHttp still does TLS itself (so certificate pinning and the platform trust
@@ -39,11 +40,17 @@ import javax.net.SocketFactory
  */
 public fun OkHttpClient.Builder.tor(
     tor: Tor,
-    isolation: String? = null,
+    isolation: Isolation? = null,
 ): OkHttpClient.Builder =
     dns(TorDns)
         .socketFactory(TorSocketFactory(tor, isolation))
         .proxy(null)
+
+@Deprecated("Isolation keys are typed now.", ReplaceWith("tor(tor, Isolation(isolation))"))
+public fun OkHttpClient.Builder.tor(
+    tor: Tor,
+    isolation: String,
+): OkHttpClient.Builder = tor(tor, Isolation(isolation))
 
 /**
  * A [SocketFactory] whose sockets are Tor streams, from [OkHttpClient.Builder.tor].
@@ -51,7 +58,7 @@ public fun OkHttpClient.Builder.tor(
  */
 public class TorSocketFactory(
     private val tor: Tor,
-    private val isolation: String? = null,
+    private val isolation: Isolation? = null,
 ) : SocketFactory() {
     override fun createSocket(): Socket = TorSocket(tor, isolation)
 
@@ -97,7 +104,7 @@ public object TorDns : Dns {
  */
 private class TorSocket(
     private val tor: Tor,
-    private val isolation: String?,
+    private val isolation: Isolation?,
 ) : Socket() {
     private var stream: TorStream? = null
     private var endpoint: InetSocketAddress? = null

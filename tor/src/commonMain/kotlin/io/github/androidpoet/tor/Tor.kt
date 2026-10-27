@@ -115,8 +115,15 @@ public class Tor(
     public suspend fun connect(
         host: String,
         port: Int,
-        isolation: String? = null,
+        isolation: Isolation? = null,
     ): TorStream = open(host, port, isolation, tls = false)
+
+    @Deprecated("Isolation keys are typed now.", ReplaceWith("connect(host, port, Isolation(isolation))"))
+    public suspend fun connect(
+        host: String,
+        port: Int,
+        isolation: String,
+    ): TorStream = connect(host, port, Isolation(isolation))
 
     /**
      * Like [connect], then performs a TLS handshake with [host] as the server name.
@@ -129,13 +136,20 @@ public class Tor(
     public suspend fun connectTls(
         host: String,
         port: Int = HTTPS_PORT,
-        isolation: String? = null,
+        isolation: Isolation? = null,
     ): TorStream = open(host, port, isolation, tls = true)
+
+    @Deprecated("Isolation keys are typed now.", ReplaceWith("connectTls(host, port, Isolation(isolation))"))
+    public suspend fun connectTls(
+        host: String,
+        port: Int,
+        isolation: String,
+    ): TorStream = connectTls(host, port, Isolation(isolation))
 
     private suspend fun open(
         host: String,
         port: Int,
-        isolation: String?,
+        isolation: Isolation?,
         tls: Boolean,
     ): TorStream {
         require(port in PORT_RANGE) { "port $port is not in $PORT_RANGE" }
@@ -145,9 +159,10 @@ public class Tor(
         // still be freed, so wait for it and close it below.
         val stream =
             withContext(Dispatchers.IO + NonCancellable) {
+                val key = isolation?.key
                 val pointer =
                     tor.use {
-                        if (tls) TorBridge.connectTls(it, host, port, isolation) else TorBridge.connect(it, host, port, isolation)
+                        if (tls) TorBridge.connectTls(it, host, port, key) else TorBridge.connect(it, host, port, key)
                     }
                 TorStream(pointer)
             }
@@ -163,22 +178,27 @@ public class Tor(
      * bootstrapping first if needed. [port] 0 picks a free port. Calling it again
      * returns the running proxy, whatever the arguments.
      *
-     * Any process on the device can reach a loopback port. With a [password], the
-     * proxy refuses clients that do not authenticate with it ([SocksProxy.url]
-     * includes it); use one unless the client cannot send SOCKS credentials, as a
-     * Chromium WebView cannot.
+     * Any process on the device can reach a loopback port, so by default the proxy
+     * demands a password it generates ([SocksAuth.Generated]); [SocksProxy.url]
+     * includes it. Pass [SocksAuth.None] only for a client that cannot send SOCKS
+     * credentials, such as a Chromium WebView.
      *
      * @throws TorException if the port cannot be bound or the client is closed.
      */
     public suspend fun startSocksProxy(
         port: Int = 0,
-        password: String? = null,
+        auth: SocksAuth = SocksAuth.Generated,
     ): SocksProxy {
         require(port == 0 || port in PORT_RANGE) { "port $port is not 0 or in $PORT_RANGE" }
-        require(password == null || password.isSocksCredential()) {
-            "password must be 1..255 UTF-8 bytes without NUL (SOCKS5 limit); pass null for no authentication"
-        }
         bootstrap()
+        // Drawn before taking the lock, so a slow or failing OS random source cannot
+        // hold up every other proxy start and stop.
+        val password =
+            when (auth) {
+                SocksAuth.Generated -> withContext(Dispatchers.IO) { TorBridge.randomBytes(GENERATED_PASSWORD_BYTES).toHex() }
+                is SocksAuth.Password -> auth.value
+                SocksAuth.None -> null
+            }
         // Serialised, so two callers cannot start servers with different passwords and
         // each believe theirs won; the native side only ever keeps the first.
         socksLock.withLock {
@@ -196,6 +216,15 @@ public class Tor(
             }
         }
     }
+
+    @Deprecated(
+        "Authentication is typed now; null meant no authentication.",
+        ReplaceWith("startSocksProxy(port, password?.let(SocksAuth::Password) ?: SocksAuth.None)"),
+    )
+    public suspend fun startSocksProxy(
+        port: Int,
+        password: String?,
+    ): SocksProxy = startSocksProxy(port, password?.let(SocksAuth::Password) ?: SocksAuth.None)
 
     /**
      * How many connections to the SOCKS proxy named an IP address instead of a
@@ -242,7 +271,7 @@ public class Tor(
         val created =
             withContext(Dispatchers.IO) {
                 NativeHandle(
-                    pointer = TorBridge.create(config.stateDirectory, config.cacheDirectory),
+                    pointer = TorBridge.create(config.stateDirectory, config.cacheDirectory, config.settingsJson()),
                     name = "Tor",
                     shutdown = { tor ->
                         TorBridge.cancelBootstrap(tor)
@@ -290,10 +319,8 @@ public class Tor(
     }
 
     internal companion object {
-        /** RFC 1929 carries credentials with a one-byte length, and the native side takes a C string. */
-        fun String.isSocksCredential(): Boolean = encodeToByteArray().size in 1..SOCKS_CREDENTIAL_MAX_BYTES && '\u0000' !in this
-
-        private const val SOCKS_CREDENTIAL_MAX_BYTES = 255
+        /** 192 bits of OS randomness, hex-encoded: well inside SOCKS5's 255-byte limit. */
+        private const val GENERATED_PASSWORD_BYTES = 24
 
         val PORT_RANGE = 1..65_535
         const val HTTPS_PORT = 443

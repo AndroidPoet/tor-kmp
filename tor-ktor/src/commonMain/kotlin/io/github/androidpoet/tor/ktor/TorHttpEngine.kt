@@ -6,6 +6,8 @@ import io.ktor.client.engine.callContext
 import io.ktor.client.plugins.ConnectTimeoutException
 import io.ktor.client.plugins.HttpTimeoutCapability
 import io.ktor.client.plugins.HttpTimeoutConfig
+import io.ktor.client.plugins.websocket.WebSocketCapability
+import io.ktor.client.plugins.websocket.WebSocketExtensionsCapability
 import io.ktor.client.request.HttpRequestData
 import io.ktor.client.request.HttpResponseData
 import io.ktor.http.isSecure
@@ -22,7 +24,8 @@ import kotlinx.coroutines.withTimeout
 internal class TorHttpEngine(
     override val config: TorEngineConfig,
 ) : HttpClientEngineBase("tor-kmp") {
-    override val supportedCapabilities: Set<HttpClientEngineCapability<*>> = setOf(HttpTimeoutCapability)
+    override val supportedCapabilities: Set<HttpClientEngineCapability<*>> =
+        setOf(HttpTimeoutCapability, WebSocketCapability, WebSocketExtensionsCapability)
 
     private val pool by lazy {
         ConnectionPool(
@@ -42,9 +45,10 @@ internal class TorHttpEngine(
         val callScope = CoroutineScope(callContext)
         try {
             writeRequest(data, connection.output, callScope)
-            return readResponse(requestTime, data, connection.input, callScope) { reusable ->
-                // Runs once the body has been fully read, or the call failed. The call's
-                // scope may already be cancelled by then, so this runs on the engine's.
+            return readResponse(requestTime, data, connection.input, connection.output, callScope) { reusable ->
+                // Runs once the body has been fully read, the call failed, or a WebSocket
+                // session ended. The call's scope may already be cancelled by then, so this
+                // runs on the engine's.
                 launch { if (reusable) pool.release(connection) else connection.close() }
             }
         } catch (error: Throwable) {

@@ -24,6 +24,11 @@ jobs:
 
       - uses: gradle/actions/setup-gradle@v4
 
+      # tor-lyrebird builds the Go pluggable-transport client from source.
+      - uses: actions/setup-go@v5
+        with:
+          go-version: '1.26'
+
       # The compiler and its targets come from native/rust-toolchain.toml; the
       # cross tools are pinned here. Bump all of them together, with Arti.
       - name: Install Rust toolchains

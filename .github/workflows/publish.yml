@@ -22,6 +22,11 @@ jobs:
 
       - uses: gradle/actions/setup-gradle@v4
 
+      # tor-lyrebird builds the Go pluggable-transport client from source.
+      - uses: actions/setup-go@v5
+        with:
+          go-version: '1.26'
+
       # One macOS runner builds the Rust core for every target: cargo for Apple,
       # cargo-zigbuild for Linux/Windows, cargo-ndk for Android.
       # The compiler and its targets come from native/rust-toolchain.toml; the

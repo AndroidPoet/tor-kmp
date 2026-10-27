@@ -6,6 +6,7 @@ import io.github.androidpoet.tor.TorException
 import io.github.androidpoet.tor.cinterop.torkmp_blocked_kind
 import io.github.androidpoet.tor.cinterop.torkmp_blocked_reason
 import io.github.androidpoet.tor.cinterop.torkmp_bootstrap
+import io.github.androidpoet.tor.cinterop.torkmp_bridge_check
 import io.github.androidpoet.tor.cinterop.torkmp_cancel_bootstrap
 import io.github.androidpoet.tor.cinterop.torkmp_connect
 import io.github.androidpoet.tor.cinterop.torkmp_connect_tls
@@ -13,6 +14,7 @@ import io.github.androidpoet.tor.cinterop.torkmp_create
 import io.github.androidpoet.tor.cinterop.torkmp_destroy
 import io.github.androidpoet.tor.cinterop.torkmp_last_error
 import io.github.androidpoet.tor.cinterop.torkmp_new_identity
+import io.github.androidpoet.tor.cinterop.torkmp_random_bytes
 import io.github.androidpoet.tor.cinterop.torkmp_socks_ip_connects
 import io.github.androidpoet.tor.cinterop.torkmp_socks_start
 import io.github.androidpoet.tor.cinterop.torkmp_socks_stop
@@ -45,7 +47,18 @@ internal actual object TorBridge {
     actual fun create(
         stateDir: String,
         cacheDir: String,
-    ): Long = torkmp_create(stateDir, cacheDir).orThrow().toLong()
+        settings: String?,
+    ): Long = torkmp_create(stateDir, cacheDir, settings).orThrow().toLong()
+
+    actual fun bridgeCheck(line: String): String? = torkmp_bridge_check(line)?.consume()
+
+    actual fun randomBytes(length: Int): ByteArray {
+        val bytes = ByteArray(length)
+        if (length == 0) return bytes
+        val result = bytes.usePinned { pinned -> torkmp_random_bytes(pinned.addressOf(0).reinterpret(), length.convert()) }
+        if (result != 0) throwLastError()
+        return bytes
+    }
 
     actual fun bootstrap(tor: Long) {
         if (torkmp_bootstrap(tor.client) != 0) throwLastError()

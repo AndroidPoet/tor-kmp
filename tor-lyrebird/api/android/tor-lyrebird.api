@@ -1,0 +1,10 @@
+public final class io/github/androidpoet/tor/lyrebird/Lyrebird {
+	public static final field INSTANCE Lio/github/androidpoet/tor/lyrebird/Lyrebird;
+	public static final field VERSION Ljava/lang/String;
+	public final fun getProtocols ()Ljava/util/List;
+}
+
+public final class io/github/androidpoet/tor/lyrebird/LyrebirdAndroidKt {
+	public static final fun transport (Lio/github/androidpoet/tor/lyrebird/Lyrebird;Landroid/content/Context;)Lio/github/androidpoet/tor/PluggableTransport;
+}
+

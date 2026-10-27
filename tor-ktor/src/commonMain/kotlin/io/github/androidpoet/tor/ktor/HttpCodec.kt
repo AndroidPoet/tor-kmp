@@ -1,6 +1,7 @@
 package io.github.androidpoet.tor.ktor
 
 import io.ktor.client.engine.mergeHeaders
+import io.ktor.client.request.ClientUpgradeContent
 import io.ktor.client.request.HttpRequestData
 import io.ktor.client.request.HttpResponseData
 import io.ktor.http.HeadersImpl
@@ -27,7 +28,9 @@ import io.ktor.utils.io.join
 import io.ktor.utils.io.writeFully
 import io.ktor.utils.io.writePacket
 import io.ktor.utils.io.writer
+import io.ktor.websocket.RawWebSocket
 import kotlinx.coroutines.CoroutineScope
+import kotlinx.coroutines.Job
 import kotlinx.io.EOFException
 
 // HTTP/1.1 over a TorConnection, built on Ktor's own codec (ktor-http-cio). The
@@ -113,11 +116,18 @@ private suspend fun writeBody(
  * Reads the status line, headers and body from [input]. [onDone] is called with
  * `true` once the body has been fully read and the connection may serve another
  * request, or `false` if the connection must be closed.
+ *
+ * A `101 Switching Protocols` answer to a WebSocket handshake hands the connection
+ * to a [RawWebSocket] session on [scope]; [onDone] then runs with `false` once the
+ * session's own job completes, so an upgraded connection is never pooled or closed
+ * underneath a live session.
  */
+@OptIn(InternalAPI::class)
 internal suspend fun readResponse(
     requestTime: GMTDate,
     request: HttpRequestData,
     input: ByteReadChannel,
+    output: ByteWriteChannel,
     scope: CoroutineScope,
     onDone: (reusable: Boolean) -> Unit,
 ): HttpResponseData {
@@ -131,6 +141,16 @@ internal suspend fun readResponse(
         val connection = ConnectionOptions.parse(raw.headers[HttpHeaders.Connection])
         val version = HttpProtocolVersion.parse(raw.version)
         val headers = HeadersImpl(raw.headers.toMap())
+
+        val upgrade = request.body.unwrapped() as? ClientUpgradeContent
+        if (upgrade != null && status == HttpStatusCode.SwitchingProtocols) {
+            upgrade.verify(headers)
+            val session = RawWebSocket(input, output, masking = true, coroutineContext = scope.coroutineContext)
+            // The session adds its own child job to the context it is given; that job, not
+            // the call's, completes when the reader and writer are done.
+            checkNotNull(session.coroutineContext[Job]).invokeOnCompletion { onDone(false) }
+            return HttpResponseData(status, requestTime, headers, version, session, scope.coroutineContext)
+        }
 
         val hasBody =
             request.method != HttpMethod.Head &&

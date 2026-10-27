@@ -9,7 +9,12 @@ internal actual object TorBridge {
     @JvmStatic actual external fun create(
         stateDir: String,
         cacheDir: String,
+        settings: String?,
     ): Long
+
+    @JvmStatic actual external fun bridgeCheck(line: String): String?
+
+    @JvmStatic actual external fun randomBytes(length: Int): ByteArray
 
     @JvmStatic actual external fun bootstrap(tor: Long)
 

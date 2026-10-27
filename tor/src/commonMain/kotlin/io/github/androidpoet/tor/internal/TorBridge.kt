@@ -9,10 +9,18 @@ package io.github.androidpoet.tor.internal
  * does that.
  */
 internal expect object TorBridge {
+    /** [settings] is the JSON from TorConfig.settingsJson, or null for the public network. */
     fun create(
         stateDir: String,
         cacheDir: String,
+        settings: String?,
     ): Long
+
+    /** Null when [line] is a valid bridge line, otherwise the reason it is not. */
+    fun bridgeCheck(line: String): String?
+
+    /** [length] bytes from the OS random source. */
+    fun randomBytes(length: Int): ByteArray
 
     fun bootstrap(tor: Long)
 

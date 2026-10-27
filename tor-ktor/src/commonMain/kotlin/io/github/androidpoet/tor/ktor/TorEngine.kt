@@ -1,5 +1,6 @@
 package io.github.androidpoet.tor.ktor
 
+import io.github.androidpoet.tor.Isolation
 import io.github.androidpoet.tor.Tor
 import io.ktor.client.engine.HttpClientEngine
 import io.ktor.client.engine.HttpClientEngineConfig
@@ -15,14 +16,14 @@ import io.ktor.client.engine.HttpClientEngineFactory
  * val client = HttpClient(TorEngine) {
  *     engine {
  *         tor = myTor
- *         isolation = "account-1"   // optional: separate circuits per client
+ *         isolation = Isolation("account-1")   // optional: separate circuits per client
  *     }
  * }
  * client.get("https://check.torproject.org/api/ip")
  * ```
  *
  * Speaks HTTP/1.1 and keeps connections alive between requests to the same
- * host. WebSockets are not supported yet.
+ * host. Supports WebSockets through Ktor's `WebSockets` plugin; not HTTP/2.
  */
 public object TorEngine : HttpClientEngineFactory<TorEngineConfig> {
     override fun create(block: TorEngineConfig.() -> Unit): HttpClientEngine = TorHttpEngine(TorEngineConfig().apply(block))
@@ -37,7 +38,7 @@ public class TorEngineConfig : HttpClientEngineConfig() {
      * Isolation key for every request from this engine, or null for the default
      * group. Engines with different keys never share Tor circuits.
      */
-    public var isolation: String? = null
+    public var isolation: Isolation? = null
 
     /**
      * How long an idle connection is kept for reuse before it is closed.

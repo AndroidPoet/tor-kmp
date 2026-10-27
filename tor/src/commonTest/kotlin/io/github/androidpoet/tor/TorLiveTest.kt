@@ -41,7 +41,7 @@ class TorLiveTest {
             // guards against one unlucky circuit.
             var error: TorException? = null
             for (attempt in 1..EXIT_ATTEMPTS) {
-                error = assertFailsWith<TorException> { tor.connectTls(CLOUDFLARE_IP, isolation = "attempt-$attempt") }
+                error = assertFailsWith<TorException> { tor.connectTls(CLOUDFLARE_IP, isolation = Isolation("attempt-$attempt")) }
                 if ("TLS handshake" in error.message.orEmpty()) break
             }
 

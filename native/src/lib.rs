@@ -18,12 +18,16 @@ use std::sync::{Arc, Mutex};
 
 use std::sync::atomic::{AtomicU64, Ordering};
 
-use arti_client::config::TorClientConfigBuilder;
-use arti_client::{BootstrapBehavior, DataStream, IsolationToken, StreamPrefs, TorClient};
+use arti_client::config::pt::TransportConfigBuilder;
+use arti_client::config::{BridgeConfigBuilder, CfgPath, TorClientConfigBuilder};
+use arti_client::{
+    BootstrapBehavior, DataStream, ErrorKind, HasKind, IsolationToken, StreamPrefs, TorClient,
+};
 use futures::{AsyncRead, AsyncReadExt, AsyncWrite, AsyncWriteExt};
 use futures_rustls::rustls::pki_types::ServerName;
 use futures_rustls::rustls::{ClientConfig, RootCertStore};
 use futures_rustls::TlsConnector;
+use serde::Deserialize;
 use tokio::runtime::Runtime;
 use tokio::sync::watch;
 use tor_rtcompat::PreferredRuntime;
@@ -98,6 +102,25 @@ fn set_error(message: impl std::fmt::Display) {
     LAST_ERROR.with(|slot| *slot.borrow_mut() = Some(text));
 }
 
+/// The error and every cause beneath it, joined with ": ", so a failure deep in
+/// Arti (a locked state file, a refused socket, an unreadable directory) names
+/// its root cause instead of only the layer that wrapped it. A cause whose text
+/// its parent already ends with (the common `"context: {source}"` style) is not
+/// repeated.
+fn chain(error: &dyn std::error::Error) -> String {
+    let mut text = error.to_string();
+    let mut cause = error.source();
+    while let Some(next) = cause {
+        let part = next.to_string();
+        if !text.ends_with(&part) {
+            text.push_str(": ");
+            text.push_str(&part);
+        }
+        cause = next.source();
+    }
+    text
+}
+
 /// Reads a required C string argument, recording an error when it is unusable.
 unsafe fn arg_str<'a>(ptr: *const c_char, name: &str) -> Option<&'a str> {
     if ptr.is_null() {
@@ -132,28 +155,150 @@ impl Circuits {
         prefs
     }
 
+    /// Opens a stream, retrying on a fresh circuit when the exit does not answer
+    /// in time. Arti makes one attempt per call and keeps the slow circuit, so
+    /// without this a congested bridge or exit fails every connect for a while;
+    /// C Tor moves such streams to another circuit, and so does this.
     pub(crate) async fn open(
         &self,
         host: &str,
         port: u16,
         isolation: Option<&str>,
     ) -> arti_client::Result<DataStream> {
-        let prefs = self.prefs_for(isolation);
-        self.client().connect_with_prefs((host, port), &prefs).await
+        let client = self.client();
+        let mut prefs = self.prefs_for(isolation);
+        let mut attempt = 0;
+        loop {
+            match client.connect_with_prefs((host, port), &prefs).await {
+                Err(error)
+                    if attempt < EXIT_TIMEOUT_RETRIES
+                        && error.kind() == ErrorKind::RemoteNetworkTimeout =>
+                {
+                    attempt += 1;
+                    // A token nothing else holds cannot land on the circuit that just stalled.
+                    prefs.set_isolation(IsolationToken::new());
+                }
+                result => return result,
+            }
+        }
+    }
+}
+
+/// Extra attempts after a stream times out at the exit, each on a new circuit.
+const EXIT_TIMEOUT_RETRIES: u32 = 2;
+
+/// Optional settings for `torkmp_create`, as the Kotlin side serialises them.
+#[derive(Deserialize, Default)]
+struct Settings {
+    /// Bridge lines, with or without the leading `Bridge` keyword.
+    #[serde(default)]
+    bridges: Vec<String>,
+    /// Pluggable-transport clients Arti may launch for the bridges above.
+    #[serde(default)]
+    transports: Vec<TransportSettings>,
+}
+
+#[derive(Deserialize)]
+struct TransportSettings {
+    /// Transport names the executable serves, e.g. `obfs4`.
+    protocols: Vec<String>,
+    /// Absolute path of the executable.
+    path: String,
+    #[serde(default)]
+    arguments: Vec<String>,
+}
+
+/// Applies a `Settings` JSON document to `builder`.
+fn apply_settings(builder: &mut TorClientConfigBuilder, json: &str) -> Result<(), String> {
+    let settings: Settings =
+        serde_json::from_str(json).map_err(|error| format!("invalid settings: {error}"))?;
+    for line in &settings.bridges {
+        let bridge = parse_bridge(line)?;
+        builder.bridges().bridges().push(bridge);
+    }
+    for transport in &settings.transports {
+        let protocols = transport
+            .protocols
+            .iter()
+            .map(|name| {
+                name.parse()
+                    .map_err(|error| format!("invalid transport name {name:?}: {error}"))
+            })
+            .collect::<Result<Vec<_>, String>>()?;
+        let mut config = TransportConfigBuilder::default();
+        config
+            .protocols(protocols)
+            .path(CfgPath::new(transport.path.clone()))
+            .arguments(transport.arguments.clone())
+            .run_on_startup(false);
+        builder.bridges().transports().push(config);
+    }
+    Ok(())
+}
+
+/// Parses and validates one bridge line.
+fn parse_bridge(line: &str) -> Result<BridgeConfigBuilder, String> {
+    let bridge: BridgeConfigBuilder = line
+        .parse()
+        .map_err(|error| format!("invalid bridge line: {error}"))?;
+    bridge
+        .build()
+        .map_err(|error| format!("invalid bridge line: {error}"))?;
+    Ok(bridge)
+}
+
+/// Checks a bridge line without creating a client. Returns NULL when it is
+/// valid, otherwise the reason; free it with `torkmp_string_free`.
+#[no_mangle]
+pub unsafe extern "C" fn torkmp_bridge_check(line: *const c_char) -> *mut c_char {
+    let Some(line) = arg_str(line, "bridge") else {
+        return torkmp_last_error();
+    };
+    match parse_bridge(line) {
+        Ok(_) => std::ptr::null_mut(),
+        Err(message) => CString::new(message.replace('\0', " "))
+            .map(CString::into_raw)
+            .unwrap_or(std::ptr::null_mut()),
+    }
+}
+
+/// Fills `buffer` from the operating system's random source. Returns 0, or -1
+/// if the OS refused.
+#[no_mangle]
+pub unsafe extern "C" fn torkmp_random_bytes(buffer: *mut u8, len: usize) -> i32 {
+    let buffer = std::slice::from_raw_parts_mut(buffer, len);
+    match getrandom::fill(buffer) {
+        Ok(()) => 0,
+        Err(error) => {
+            set_error(format!("OS randomness unavailable: {error}"));
+            -1
+        }
     }
 }
 
 /// Creates a client that keeps its consensus in `cache_dir` and its guards and
-/// keys in `state_dir`. Does not touch the network until `torkmp_bootstrap`.
+/// keys in `state_dir`. `settings` is an optional JSON document (see `Settings`)
+/// with bridges and pluggable transports; NULL means the public network.
+/// Does not touch the network until `torkmp_bootstrap`.
 #[no_mangle]
 pub unsafe extern "C" fn torkmp_create(
     state_dir: *const c_char,
     cache_dir: *const c_char,
+    settings: *const c_char,
 ) -> *mut TorKmp {
-    let (Some(state_dir), Some(cache_dir)) =
-        (arg_str(state_dir, "state_dir"), arg_str(cache_dir, "cache_dir"))
-    else {
+    let (Some(state_dir), Some(cache_dir)) = (
+        arg_str(state_dir, "state_dir"),
+        arg_str(cache_dir, "cache_dir"),
+    ) else {
         return std::ptr::null_mut();
+    };
+    let settings = if settings.is_null() {
+        None
+    } else {
+        match arg_str(settings, "settings") {
+            Some(json) => Some(json),
+            None => return std::ptr::null_mut(),
+        }
     };
     // Errs only when a provider is already installed, which is fine.
     let _ = rustls::crypto::ring::default_provider().install_default();
@@ -164,14 +309,21 @@ pub unsafe extern "C" fn torkmp_create(
     {
         Ok(runtime) => Arc::new(runtime),
         Err(error) => {
-            set_error(format!("could not start runtime: {error}"));
+            set_error(format!("could not start runtime: {}", chain(&error)));
             return std::ptr::null_mut();
         }
     };
-    let config = match TorClientConfigBuilder::from_directories(state_dir, cache_dir).build() {
+    let mut builder = TorClientConfigBuilder::from_directories(state_dir, cache_dir);
+    if let Some(json) = settings {
+        if let Err(message) = apply_settings(&mut builder, json) {
+            set_error(message);
+            return std::ptr::null_mut();
+        }
+    }
+    let config = match builder.build() {
         Ok(config) => config,
         Err(error) => {
-            set_error(format!("invalid configuration: {error}"));
+            set_error(format!("invalid configuration: {}", chain(&error)));
             return std::ptr::null_mut();
         }
     };
@@ -194,7 +346,7 @@ pub unsafe extern "C" fn torkmp_create(
             running_bootstrap: Mutex::new(None),
         })),
         Err(error) => {
-            set_error(format!("could not create client: {error}"));
+            set_error(format!("could not create client: {}", chain(&error)));
             std::ptr::null_mut()
         }
     }
@@ -214,7 +366,7 @@ pub unsafe extern "C" fn torkmp_bootstrap(tor: *const TorKmp) -> i32 {
             result = client.bootstrap() => match result {
                 Ok(()) => 0,
                 Err(error) => {
-                    set_error(format!("bootstrap failed: {error}"));
+                    set_error(format!("bootstrap failed: {}", chain(&error)));
                     -1
                 }
             },
@@ -315,13 +467,19 @@ pub unsafe extern "C" fn torkmp_connect(
     let Some((host, isolation)) = connect_args(host, isolation) else {
         return std::ptr::null_mut();
     };
-    match tor.runtime.block_on(tor.circuits.open(host, port, isolation)) {
+    match tor
+        .runtime
+        .block_on(tor.circuits.open(host, port, isolation))
+    {
         Ok(stream) => {
             let (reader, writer) = stream.split();
             TorKmpStream::new(tor.runtime.clone(), Box::new(reader), Box::new(writer))
         }
         Err(error) => {
-            set_error(format!("connect to {host}:{port} failed: {error}"));
+            set_error(format!(
+                "connect to {host}:{port} failed: {}",
+                chain(&error)
+            ));
             std::ptr::null_mut()
         }
     }
@@ -350,11 +508,11 @@ pub unsafe extern "C" fn torkmp_connect_tls(
             .circuits
             .open(host, port, isolation)
             .await
-            .map_err(|error| format!("connect to {host}:{port} failed: {error}"))?;
+            .map_err(|error| format!("connect to {host}:{port} failed: {}", chain(&error)))?;
         tls_connector()
             .connect(server_name, stream)
             .await
-            .map_err(|error| format!("TLS handshake with {host} failed: {error}"))
+            .map_err(|error| format!("TLS handshake with {host} failed: {}", chain(&error)))
     });
     match connected {
         Ok(tls) => {
@@ -387,6 +545,11 @@ pub unsafe extern "C" fn torkmp_stream_read(
         tokio::select! {
             result = reader.read(buffer) => match result {
                 Ok(count) => count as i64,
+                // A TLS peer that closes without close_notify. Browsers and NSS treat
+                // this as end of stream and leave truncation to the protocol's own
+                // framing; rustls reports it as an error, which would turn every
+                // abrupt but complete HTTPS response into a failure.
+                Err(error) if error.kind() == std::io::ErrorKind::UnexpectedEof => 0,
                 Err(error) => {
                     set_error(format!("read failed: {error}"));
                     -1
@@ -454,7 +617,11 @@ pub unsafe extern "C" fn torkmp_stream_free(stream: *mut TorKmpStream) {
 /// refused. Returns the bound port, or -1. Calling it again returns the running
 /// proxy's port and ignores the arguments.
 #[no_mangle]
-pub unsafe extern "C" fn torkmp_socks_start(tor: *const TorKmp, port: u16, password: *const c_char) -> i32 {
+pub unsafe extern "C" fn torkmp_socks_start(
+    tor: *const TorKmp,
+    port: u16,
+    password: *const c_char,
+) -> i32 {
     let tor = &*tor;
     let password = if password.is_null() {
         None
@@ -475,7 +642,7 @@ pub unsafe extern "C" fn torkmp_socks_start(tor: *const TorKmp, port: u16, passw
             i32::from(bound)
         }
         Err(error) => {
-            set_error(format!("could not start SOCKS proxy: {error}"));
+            set_error(format!("could not start SOCKS proxy: {}", chain(&error)));
             -1
         }
     }
@@ -524,5 +691,56 @@ pub extern "C" fn torkmp_last_error() -> *mut c_char {
 pub unsafe extern "C" fn torkmp_string_free(text: *mut c_char) {
     if !text.is_null() {
         drop(CString::from_raw(text));
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    const VANILLA: &str = "192.0.2.10:443 0123456789ABCDEF0123456789ABCDEF01234567";
+    const OBFS4: &str = "Bridge obfs4 192.0.2.55:38114 316E643333645F6D79216558614D3931657A5F5F cert=YXJlIGZyZXF1ZW50bHkgZnVsbCBvZiBsaXR0bGUgbWVzc2FnZXMgeW91IGNhbiBmaW5kLg iat-mode=0";
+
+    #[test]
+    fn parse_bridge_accepts_lines_with_and_without_keyword() {
+        assert!(parse_bridge(VANILLA).is_ok());
+        assert!(parse_bridge(&format!("Bridge {VANILLA}")).is_ok());
+        assert_eq!(parse_bridge(OBFS4).unwrap().get_transport(), Some("obfs4"));
+    }
+
+    #[test]
+    fn parse_bridge_rejects_garbage() {
+        let error = parse_bridge("not a bridge").unwrap_err();
+        assert!(error.starts_with("invalid bridge line"), "{error}");
+        assert!(parse_bridge("").is_err());
+    }
+
+    #[test]
+    fn apply_settings_builds_a_bridge_config() {
+        let mut builder = TorClientConfigBuilder::default();
+        let json = format!(
+            r#"{{"bridges":["{VANILLA}","{OBFS4}"],"transports":[{{"protocols":["obfs4"],"path":"/opt/lyrebird","arguments":["-enableLogging"]}}]}}"#
+        );
+        apply_settings(&mut builder, &json).unwrap();
+        assert!(builder.build().is_ok());
+    }
+
+    #[test]
+    fn apply_settings_reports_missing_transport() {
+        let mut builder = TorClientConfigBuilder::default();
+        apply_settings(&mut builder, &format!(r#"{{"bridges":["{OBFS4}"]}}"#)).unwrap();
+        let error = builder.build().unwrap_err().to_string();
+        assert!(error.contains("pluggable transport"), "{error}");
+    }
+
+    #[test]
+    fn random_bytes_are_not_constant() {
+        let mut first = [0u8; 32];
+        let mut second = [0u8; 32];
+        unsafe {
+            assert_eq!(torkmp_random_bytes(first.as_mut_ptr(), first.len()), 0);
+            assert_eq!(torkmp_random_bytes(second.as_mut_ptr(), second.len()), 0);
+        }
+        assert_ne!(first, second);
     }
 }
