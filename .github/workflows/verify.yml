@@ -16,8 +16,10 @@ on:
         required: false
         default: "debug"
 
+# Keyed by the `only` input too, so `-f only=linux` and `-f only=windows` run
+# side by side instead of the second cancelling the first.
 concurrency:
-  group: verify-${{ github.ref }}
+  group: verify-${{ github.ref }}-${{ inputs.only }}
   cancel-in-progress: true
 
 env:
