@@ -4,6 +4,37 @@ All notable changes to this project are documented here. The format is based on
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and this project
 adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## 0.2.1 - 2026-10-28
+
+Privacy review. No API changes.
+
+### Fixed
+
+- **`tor-okhttp` bypassed Tor when the system had a SOCKS proxy.** The builder left
+  OkHttp's proxy at `null`, which defers to the system `ProxySelector`; for a SOCKS proxy
+  found there (`socksProxyHost` on the JVM, a proxied Wi-Fi network on Android) OkHttp
+  opens a plain `java.net.Socket` to it and never calls the socket factory. `tor()` now
+  sets `Proxy.NO_PROXY`. A test with a decoy SOCKS proxy guards it.
+- `TorSocketFactory.createSocket(InetAddress, …)` called `getHostName()`, which does a
+  reverse DNS lookup outside Tor for an address created without a name. It now uses the
+  name the address was created with and refuses one that has none.
+
+### Changed
+
+- Error messages no longer name the destination. Arti scrubs hosts and ports from its own
+  errors; the `connect to host:port failed` prefix added them back, so a `TorException`
+  shipped to a crash reporter revealed where the user connected. The same for
+  `tor-okhttp`'s `IOException`s.
+- On iOS and macOS the data directory is marked excluded from backup
+  (`NSURLIsExcludedFromBackupKey`) when the client is created: its guard choice and keys
+  identify the client, and a restore onto another device would link the two. The Android
+  docs now point at `context.noBackupFilesDir` for the same reason; a library cannot set
+  an app's backup rules.
+- GitHub Actions in the workflows are pinned to commit SHAs instead of moving major tags.
+- The isolation-key table in the native core is bounded (4096 keys, then it starts over),
+  so an app that draws `Isolation.random()` per request no longer grows memory without end.
+  A forgotten key's next stream gets a fresh circuit, never another key's.
+
 ## 0.2.0 - 2026-10-27
 
 ### Added

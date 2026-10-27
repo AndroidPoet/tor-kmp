@@ -2,7 +2,7 @@ package io.github.androidpoet.tor
 
 object Configuration {
     const val GROUP = "io.github.androidpoet"
-    const val VERSION = "0.2.0"
+    const val VERSION = "0.2.1"
 
     /** Upstream lyrebird tag built into tor-lyrebird; keep Lyrebird.VERSION in step. */
     const val LYREBIRD_VERSION = "0.8.1"

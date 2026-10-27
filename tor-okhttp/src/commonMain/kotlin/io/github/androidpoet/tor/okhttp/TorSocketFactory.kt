@@ -20,6 +20,7 @@ import java.io.InputStream
 import java.io.OutputStream
 import java.net.InetAddress
 import java.net.InetSocketAddress
+import java.net.Proxy
 import java.net.Socket
 import java.net.SocketAddress
 import java.net.SocketException
@@ -44,7 +45,9 @@ public fun OkHttpClient.Builder.tor(
 ): OkHttpClient.Builder =
     dns(TorDns)
         .socketFactory(TorSocketFactory(tor, isolation))
-        .proxy(null)
+        // Not null: null defers to the system ProxySelector, and for a SOCKS proxy
+        // found there OkHttp opens a plain java.net.Socket, bypassing this factory.
+        .proxy(Proxy.NO_PROXY)
 
 @Deprecated("Isolation keys are typed now.", ReplaceWith("tor(tor, Isolation(isolation))"))
 public fun OkHttpClient.Builder.tor(
@@ -77,14 +80,24 @@ public class TorSocketFactory(
     override fun createSocket(
         host: InetAddress,
         port: Int,
-    ): Socket = createSocket(host.hostName, port)
+    ): Socket = createSocket(host.knownName(), port)
 
     override fun createSocket(
         address: InetAddress,
         port: Int,
         localAddress: InetAddress,
         localPort: Int,
-    ): Socket = createSocket(address.hostName, port)
+    ): Socket = createSocket(address.knownName(), port)
+
+    /**
+     * The name the address was created with. [InetAddress.getHostName] would
+     * reverse-resolve one created from bare bytes, and that query would leave the
+     * device; `toString` never resolves.
+     */
+    private fun InetAddress.knownName(): String =
+        toString().substringBefore('/').ifEmpty {
+            throw IOException("address carries no hostname; use TorDns so the name reaches Tor unresolved")
+        }
 }
 
 /**
@@ -129,7 +142,7 @@ private class TorSocket(
         // getHostString returns the name we were given, never a resolved address.
         val host = address.hostString
         require(address.isUnresolved || address.address.isAnyLocalAddress) {
-            "host was resolved locally to ${address.address}; use TorDns so the hostname reaches Tor"
+            "host was resolved locally; use TorDns so the hostname reaches Tor"
         }
         stream =
             try {
@@ -145,9 +158,10 @@ private class TorSocket(
                     }
                 }
             } catch (_: TimeoutCancellationException) {
-                throw SocketTimeoutException("Tor connection to $host:${address.port} timed out after $timeout ms")
+                // Like the native errors, no destination in the text: it may end up in a crash report.
+                throw SocketTimeoutException("Tor connection timed out after $timeout ms")
             } catch (error: Exception) {
-                throw IOException("Tor connection to $host:${address.port} failed", error)
+                throw IOException("Tor connection failed", error)
             }
         this.endpoint = address
     }

@@ -6,6 +6,9 @@
 //!   and must be read on the same thread, right after the failing call.
 //! - Handles are freed exactly once. The Kotlin wrapper guarantees no call is in
 //!   flight when it frees one.
+//! - Error text never names a destination. Arti scrubs addresses from its own
+//!   errors (`[scrubbed]`) and this layer adds none back, so a message that ends
+//!   up in a log or a crash report does not say where the user connected.
 
 #[cfg(feature = "jni")]
 mod java;
@@ -49,10 +52,38 @@ pub(crate) struct Circuits {
     /// Swapped by `torkmp_new_identity`; streams opened afterwards never share
     /// circuits with streams opened before.
     current: Mutex<Arc<Client>>,
-    isolation_groups: Mutex<HashMap<String, IsolationToken>>,
+    isolation_groups: Mutex<IsolationGroups>,
     /// SOCKS CONNECTs that carried an IP address instead of a hostname: the
     /// client resolved DNS itself, outside Tor.
     pub(crate) socks_ip_connects: AtomicU64,
+}
+
+/// Isolation keys and the Arti token each one maps to. Bounded: at
+/// `MAX_ISOLATION_GROUPS` keys it starts over, so an app that draws a fresh key
+/// per request cannot grow it without end. Forgetting a key only moves its next
+/// stream onto a circuit of its own, never onto another key's.
+#[derive(Default)]
+pub(crate) struct IsolationGroups(HashMap<String, IsolationToken>);
+
+/// Keys kept at once; 255 bytes each at most, so about 1 MB.
+const MAX_ISOLATION_GROUPS: usize = 4096;
+
+impl IsolationGroups {
+    fn token_for(&mut self, key: &str) -> IsolationToken {
+        if let Some(token) = self.0.get(key) {
+            return *token;
+        }
+        if self.0.len() >= MAX_ISOLATION_GROUPS {
+            self.0.clear();
+        }
+        let token = IsolationToken::new();
+        self.0.insert(key.to_owned(), token);
+        token
+    }
+
+    fn clear(&mut self) {
+        self.0.clear();
+    }
 }
 
 type Reader = Box<dyn AsyncRead + Send + Unpin>;
@@ -144,13 +175,7 @@ impl Circuits {
     fn prefs_for(&self, isolation: Option<&str>) -> StreamPrefs {
         let mut prefs = StreamPrefs::new();
         if let Some(key) = isolation {
-            let token = *self
-                .isolation_groups
-                .lock()
-                .unwrap()
-                .entry(key.to_owned())
-                .or_insert_with(IsolationToken::new);
-            prefs.set_isolation(token);
+            prefs.set_isolation(self.isolation_groups.lock().unwrap().token_for(key));
         }
         prefs
     }
@@ -366,7 +391,7 @@ pub unsafe extern "C" fn torkmp_create(
             runtime,
             circuits: Arc::new(Circuits {
                 current: Mutex::new(client),
-                isolation_groups: Mutex::new(HashMap::new()),
+                isolation_groups: Mutex::new(IsolationGroups::default()),
                 socks_ip_connects: AtomicU64::new(0),
             }),
             socks: Mutex::new(None),
@@ -503,10 +528,7 @@ pub unsafe extern "C" fn torkmp_connect(
             TorKmpStream::new(tor.runtime.clone(), Box::new(reader), Box::new(writer))
         }
         Err(error) => {
-            set_error(format!(
-                "connect to {host}:{port} failed: {}",
-                chain(&error)
-            ));
+            set_error(format!("connect failed: {}", chain(&error)));
             std::ptr::null_mut()
         }
     }
@@ -527,7 +549,7 @@ pub unsafe extern "C" fn torkmp_connect_tls(
         return std::ptr::null_mut();
     };
     let Ok(server_name) = ServerName::try_from(host.to_owned()) else {
-        set_error(format!("{host} is not a valid TLS server name"));
+        set_error("host is not a valid TLS server name");
         return std::ptr::null_mut();
     };
     let connected = tor.runtime.block_on(async {
@@ -535,11 +557,11 @@ pub unsafe extern "C" fn torkmp_connect_tls(
             .circuits
             .open(host, port, isolation)
             .await
-            .map_err(|error| format!("connect to {host}:{port} failed: {}", chain(&error)))?;
+            .map_err(|error| format!("connect failed: {}", chain(&error)))?;
         tls_connector()
             .connect(server_name, stream)
             .await
-            .map_err(|error| format!("TLS handshake with {host} failed: {}", chain(&error)))
+            .map_err(|error| format!("TLS handshake failed: {}", chain(&error)))
     });
     match connected {
         Ok(tls) => {
@@ -753,6 +775,24 @@ mod tests {
         apply_settings(&mut builder, &format!(r#"{{"bridges":["{OBFS4}"]}}"#)).unwrap();
         let error = builder.build().unwrap_err().to_string();
         assert!(error.contains("pluggable transport"), "{error}");
+    }
+
+    #[test]
+    fn isolation_groups_keep_a_key_on_its_token_until_full() {
+        let mut groups = IsolationGroups::default();
+        let first = groups.token_for("first");
+        assert_eq!(groups.token_for("first"), first);
+        assert_ne!(groups.token_for("second"), first);
+
+        for n in 0..MAX_ISOLATION_GROUPS {
+            groups.token_for(&format!("key-{n}"));
+        }
+
+        assert!(groups.0.len() <= MAX_ISOLATION_GROUPS);
+        // Forgotten keys land on fresh tokens, never on one another's.
+        let again = groups.token_for("first");
+        assert_ne!(again, first);
+        assert_ne!(again, groups.token_for("second"));
     }
 
     #[test]

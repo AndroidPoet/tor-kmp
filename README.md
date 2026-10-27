@@ -49,10 +49,10 @@ In the `commonMain` dependencies of a Kotlin Multiplatform module (or `dependenc
 Android or JVM module):
 
 ```kotlin
-implementation("io.github.androidpoet:tor:0.2.0")          // the client: streams, TLS, SOCKS, bridges
-implementation("io.github.androidpoet:tor-ktor:0.2.0")     // optional: a Ktor engine, no proxy
-implementation("io.github.androidpoet:tor-okhttp:0.2.0")   // optional: OkHttp on Tor sockets (Android, JVM)
-implementation("io.github.androidpoet:tor-lyrebird:0.2.0") // optional: obfs4/webtunnel/snowflake client (Android, JVM)
+implementation("io.github.androidpoet:tor:0.2.1")          // the client: streams, TLS, SOCKS, bridges
+implementation("io.github.androidpoet:tor-ktor:0.2.1")     // optional: a Ktor engine, no proxy
+implementation("io.github.androidpoet:tor-okhttp:0.2.1")   // optional: OkHttp on Tor sockets (Android, JVM)
+implementation("io.github.androidpoet:tor-lyrebird:0.2.1") // optional: obfs4/webtunnel/snowflake client (Android, JVM)
 ```
 
 The artifacts are on Maven Central (`repositories { mavenCentral() }`). The native Tor
@@ -123,7 +123,9 @@ uiScope.launch {
 ```
 
 `.onion` addresses work out of the box, and hostnames are resolved by the exit relay, so no
-DNS query for them leaves the device. For HTTP you will not write requests by hand; read on.
+DNS query for them leaves the device. That covers names you hand to the library; a name
+your own code resolved first (an `InetAddress`, a cached IP) was looked up in the clear
+before Tor saw it. For HTTP you will not write requests by hand; read on.
 
 ## Choose a transport
 
@@ -190,6 +192,12 @@ OkHttp keeps doing TLS itself (platform trust store, `CertificatePinner`, HTTP/2
 only the TCP layer is a Tor stream. `TorDns` hands hostnames to Tor unresolved, so `.onion`
 hosts work and no DNS query leaves the device. The same client serves Ktor's `OkHttp` engine
 through `engine { preconfigured = client }`.
+
+`tor()` also sets `proxy(Proxy.NO_PROXY)`. OkHttp's default (`null`) consults the system
+`ProxySelector`, and for a SOCKS proxy configured there (`socksProxyHost` on the JVM, a
+proxied Wi-Fi network on Android) it opens a plain `java.net.Socket` to that proxy without
+ever calling the socket factory, so every request would bypass Tor. Do not set a proxy on
+the builder after `tor()`.
 
 In both adapters the connect timeout (`connectTimeout` / `HttpTimeout.connectTimeoutMillis`)
 bounds opening the Tor stream, like a TCP connect. It does not cover Tor's first bootstrap,
@@ -285,12 +293,17 @@ val tor =
 
 ## Platform notes
 
+Whatever directory you choose, Arti creates it and its `state/` and `cache/` owner-only
+(`0700`) and refuses to use one that other users can write to. The directory identifies the
+client across launches (guard choice, keys), so the second column also says what keeps it
+out of cloud backups.
+
 | Platform | Data directory | Notes |
 | --- | --- | --- |
-| Android | `context.filesDir.resolve("tor").path` | `INTERNET` is declared in the library manifest and merged into yours. Consumer R8/ProGuard rules ship in the AAR. A backgrounded process may be killed: run `Tor` in a foreground service if it must stay up (messenger, long download); otherwise create it again on the next launch, which is fast with a warm directory. |
-| iOS | `NSFileManager` `applicationSupportDirectory` + `/tor` | The native library is a static archive inside the klib and is linked into your framework by the Kotlin compiler; nothing to add in Xcode. No special entitlement for outbound connections. The process is suspended in the background and its connections drop; keep the `Tor` instance and the next `connect()` after resuming rebuilds circuits from the cached directory. |
+| Android | `context.noBackupFilesDir.resolve("tor").path` | Not `filesDir`: Auto Backup would copy the client's guard choice and keys to the user's Google account and restore them onto the next device, linking the two. `INTERNET` is declared in the library manifest and merged into yours. Consumer R8/ProGuard rules ship in the AAR. A backgrounded process may be killed: run `Tor` in a foreground service if it must stay up (messenger, long download); otherwise create it again on the next launch, which is fast with a warm directory. |
+| iOS | `NSFileManager` `applicationSupportDirectory` + `/tor` | The library marks the directory excluded from iCloud backup when it creates the client (same on macOS, for Time Machine). The native library is a static archive inside the klib and is linked into your framework by the Kotlin compiler; nothing to add in Xcode. No special entitlement for outbound connections. The process is suspended in the background and its connections drop; keep the `Tor` instance and the next `connect()` after resuming rebuilds circuits from the cached directory. |
 | macOS (Kotlin/Native) | `~/Library/Application Support/<app>/tor` | Same linking story as iOS. A sandboxed app needs the `com.apple.security.network.client` entitlement for any outbound socket, Tor included. |
-| JVM / Compose Desktop | a directory under the user's home or `java.io.tmpdir` | The jar carries `libtorkmp` for macOS (arm64, x64), Linux (arm64, x64) and Windows (x64); the right one is extracted to a temporary file and loaded on first use. |
+| JVM / Compose Desktop | a directory under the user's home, not `java.io.tmpdir` (other users can read a world-shared temp directory, and the state inside identifies the client) | The jar carries `libtorkmp` for macOS (arm64, x64), Linux (arm64, x64) and Windows (x64); the right one is extracted to a temporary file and loaded on first use. |
 | Linux (Kotlin/Native) | `$XDG_DATA_HOME/<app>/tor` | glibc 2.17 or newer. |
 | Windows (`mingwX64`) | `%LOCALAPPDATA%\<app>\tor` | Static library inside the klib, linked by the Kotlin compiler. Bootstrap used to hang at 15 % on every Windows build of 0.1.x (a 100 ns clock bug in an Arti dependency, [issue #1](https://github.com/AndroidPoet/tor-kmp/issues/1)); 0.2.0 ships the fix. |
 
@@ -351,7 +364,9 @@ tor.newIdentity()
 ```
 
 `Isolation` validates its key (1–255 UTF-8 bytes, no NUL: it doubles as a SOCKS username)
-and `Isolation.random()` draws 128 bits from the OS. The key is not a secret.
+and `Isolation.random()` draws 128 bits from the OS. The key is not a secret. The core
+remembers up to 4096 keys at a time and then forgets them all, so a key per request costs
+nothing; a forgotten key's next stream gets a circuit of its own, never another key's.
 
 This separates **circuits**, not application state. Reusing a key across accounts that must
 stay unlinkable undoes it, and cookies, caches and sessions are your app's to keep apart.
@@ -384,7 +399,7 @@ suspend fun fetchOrExplain(): String =
         withTimeout(90_000) { tor.bootstrap() }             // bound the slow part separately
         withTimeout(30_000) { tor.connectTls("example.com") }.use { stream -> readAll(stream) }
     } catch (e: TorException) {
-        "Tor: ${e.message}"                                 // e.g. "connect to example.com:443 failed: …"
+        "Tor: ${e.message}"                                 // "connect failed: " + Arti's reason, destination scrubbed
     } catch (e: TimeoutCancellationException) {
         "Tor is taking too long; check tor.state.value for a Blockage"
     }
@@ -403,6 +418,12 @@ suspend fun fetchOrExplain(): String =
   Close your `HttpClient`s and `OkHttpClient` pools first, then `Tor`: neither adapter closes
   the `Tor` it was given.
 - `bootstrap()` is optional: `connect()` and `startSocksProxy()` call it for you.
+- **Error text never names the destination.** Arti scrubs hosts, ports and relays from its
+  messages (`[scrubbed]`) and this library adds none back, so a `TorException` that reaches
+  a log or a crash reporter does not say where the user connected. It can still name your
+  data directory when a file operation fails, and OkHttp's and Ktor's own exceptions
+  (`Failed to connect to …`, `ConnectTimeoutException`) do name the URL; treat all of it as
+  diagnostics and filter before shipping it anywhere.
 
 ## What it is, and what it is not
 

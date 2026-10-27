@@ -3,6 +3,7 @@ package io.github.androidpoet.tor
 import io.github.androidpoet.tor.internal.NativeHandle
 import io.github.androidpoet.tor.internal.TorBridge
 import io.github.androidpoet.tor.internal.cancellableBlocking
+import io.github.androidpoet.tor.internal.excludeFromBackup
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.IO
@@ -268,13 +269,17 @@ public class Tor(
         mutableState.value = TorState.Closed
     }
 
+    /** Only called under [bootstrapLock], so two first callers cannot create two clients on one directory. */
     private suspend fun handleOrCreate(): NativeHandle {
         handle.load()?.let { return it }
         if (closed.load()) throw TorException("Tor is closed")
         val created =
             withContext(Dispatchers.IO) {
+                val pointer = TorBridge.create(config.stateDirectory, config.cacheDirectory, config.settingsJson())
+                // Arti has just created the directory; its guards and keys live there from now on.
+                excludeFromBackup(config.dataDirectory)
                 NativeHandle(
-                    pointer = TorBridge.create(config.stateDirectory, config.cacheDirectory, config.settingsJson()),
+                    pointer = pointer,
                     name = "Tor",
                     shutdown = { tor ->
                         TorBridge.cancelBootstrap(tor)

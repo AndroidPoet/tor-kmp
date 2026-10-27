@@ -18,8 +18,12 @@ import io.github.androidpoet.tor.internal.supportsPluggableTransports
  * Reusing the same directory across launches makes later bootstraps much faster,
  * because the network directory is cached and the client keeps its guard relays.
  *
- * @property dataDirectory a private, app-owned directory. Two running [Tor]
- * instances must not share it.
+ * @property dataDirectory a private, app-owned directory, created owner-only
+ * (`0700`) if missing; Arti refuses one that other users can write to. Two
+ * running [Tor] instances must not share it. It holds the client's guard choice and keys,
+ * which identify the client from one launch to the next, so keep it out of
+ * cloud backups: on Android put it under `context.noBackupFilesDir`; on iOS and
+ * macOS the library marks it excluded from backup itself.
  * @property bridges relays to connect through instead of the public ones. When
  * the list is not empty, only bridges are used.
  * @property transports pluggable-transport clients for the [bridges] that need
