@@ -24,7 +24,7 @@ class ValueSemanticsTest {
 
     @Test
     fun test_socksProxy_url_withoutIsolation_isPlainSocks5h() {
-        val proxy = SocksProxy(host = "127.0.0.1", port = 9150)
+        val proxy = socksProxy()
 
         val url = proxy.url()
 
@@ -33,7 +33,7 @@ class ValueSemanticsTest {
 
     @Test
     fun test_socksProxy_url_withIsolation_putsKeyInUsername() {
-        val proxy = SocksProxy(host = "127.0.0.1", port = 9150)
+        val proxy = socksProxy()
 
         val url = proxy.url(isolation = "tab-1")
 
@@ -42,10 +42,30 @@ class ValueSemanticsTest {
 
     @Test
     fun test_socksProxy_sameHostAndPort_areEqual() {
-        val first = SocksProxy(host = "127.0.0.1", port = 9150)
-        val second = SocksProxy(host = "127.0.0.1", port = 9150)
+        val first = socksProxy()
+        val second = socksProxy()
 
         assertEquals(first, second)
         assertEquals(first.hashCode(), second.hashCode())
     }
+
+    @Test
+    fun test_socksProxyUrl_percentEncodesIsolationAndPassword() {
+        val proxy = SocksProxy(host = "127.0.0.1", port = 9150, password = "p@ss word/ä", stop = {})
+
+        assertEquals("socks5h://tab%201%2F%C3%A4:p%40ss%20word%2F%C3%A4@127.0.0.1:9150", proxy.url("tab 1/ä"))
+        assertEquals("socks5h://:p%40ss%20word%2F%C3%A4@127.0.0.1:9150", proxy.url())
+    }
+
+    @Test
+    fun test_socksProxyClose_runsTheStopAction() {
+        var stopped = 0
+        val proxy = SocksProxy(host = "127.0.0.1", port = 9150, password = null, stop = { stopped++ })
+
+        proxy.close()
+
+        assertEquals(1, stopped)
+    }
+
+    private fun socksProxy() = SocksProxy(host = "127.0.0.1", port = 9150, password = null, stop = {})
 }

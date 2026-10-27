@@ -27,15 +27,29 @@ implementation, compiled for Android, iOS, macOS, Linux, Windows and the JVM.
 No Orbot, no bundled <code>tor</code> process, no control port.
 </p>
 
+<p align="center">
+  <a href="#install">Install</a> ·
+  <a href="#usage">Usage</a> ·
+  <a href="#what-it-is-and-what-it-is-not">What it is not</a> ·
+  <a href="#isolation-and-new-identity">Isolation</a> ·
+  <a href="#http-without-a-proxy">Ktor & OkHttp</a> ·
+  <a href="#the-socks-proxy">SOCKS</a> ·
+  <a href="#which-client-which-path">Client matrix</a> ·
+  <a href="#lifecycle">Lifecycle</a> ·
+  <a href="#maturity-and-provenance">Provenance</a>
+</p>
+
 ## Install
 
 ```kotlin
-implementation("io.github.androidpoet:tor:0.1.0")          // the client: streams, TLS, SOCKS
-implementation("io.github.androidpoet:tor-ktor:0.1.0")     // optional: a Ktor engine, no proxy
-implementation("io.github.androidpoet:tor-okhttp:0.1.0")   // optional: OkHttp on Tor sockets (Android, JVM)
+implementation("io.github.androidpoet:tor:0.1.1")          // the client: streams, TLS, SOCKS
+implementation("io.github.androidpoet:tor-ktor:0.1.1")     // optional: a Ktor engine, no proxy
+implementation("io.github.androidpoet:tor-okhttp:0.1.1")   // optional: OkHttp on Tor sockets (Android, JVM)
 ```
 
 The native Tor client is inside the artifact for every platform; there is nothing else to add.
+Kotlin 2.2.21+. `tor-ktor` depends on Ktor 3.3.3 (the last release built for Kotlin 2.2);
+if your app uses a newer Ktor, Gradle picks yours.
 
 ## Usage
 
@@ -51,10 +65,14 @@ tor.connect("example.com", 80).use { stream ->
 }
 
 // 2. The same stream with TLS already done: certificate checked against Mozilla's roots.
+//    A convenience for simple clients; for pinning or your platform's trust store, do TLS
+//    yourself on top of connect() (tor-okhttp does exactly that).
 tor.connectTls("example.com", 443).use { stream -> /* plaintext in, TLS over Tor out */ }
 
 // 3. A SOCKS5 proxy, for clients that only speak proxies (WebViews).
-val proxy = tor.startSocksProxy()     // SocksProxy(host = "127.0.0.1", port = 41823)
+val proxy = tor.startSocksProxy(password = secret)   // SocksProxy(127.0.0.1:41823, password)
+proxy.url("tab-1")                                   // socks5h://tab-1:<secret>@127.0.0.1:41823
+proxy.close()
 ```
 
 For HTTP, skip the hand-written requests: [`tor-ktor`](#http-without-a-proxy) gives Ktor a
@@ -90,6 +108,28 @@ when (blockage.kind) {
 `.onion` addresses work out of the box, and hostnames are resolved by the exit relay,
 so no DNS query leaves the device.
 
+## What it is, and what it is not
+
+tor-kmp routes **the connections you hand it** through the Tor network. That is the whole
+promise, and it is worth being exact about:
+
+- It is **not a VPN or a kill switch.** Any other socket your app (or a library in it) opens
+  still goes straight to the internet. If "never direct" is a requirement, centralise your
+  networking on `Tor`, `tor-ktor` or `tor-okhttp`, and fail closed when Tor is unavailable.
+- It is **not Tor Browser.** It gives you Tor's routing, not Tor Browser's fingerprinting
+  defences, first-party isolation, cookie clearing or safe defaults. A WebView behind the
+  SOCKS proxy is a normal WebView whose traffic happens to exit through Tor.
+- `isolation` keys separate **circuits**, not application state. Two requests with the same
+  key may share a circuit; two with different keys never do. Reusing a key across accounts
+  or tabs that must stay unlinkable undoes the separation.
+- The data directory holds Tor state that persists across launches (directory cache, guard
+  choice). It makes bootstrapping fast and is normal Tor behaviour, but it also means two
+  launches with the same directory are the same Tor client. Keep it in app-private storage,
+  exclude it from backups, and delete it when the user asks to start over.
+- Arti, the engine underneath, is the Tor Project's production direction but its own
+  documentation still lists [gaps relative to the C implementation](https://arti.torproject.org/guides/capability-limitations/).
+  Read it before betting a high-risk use case on this library.
+
 ## Platforms
 
 | Platform | Targets | How it's loaded | Live tests run on |
@@ -121,18 +161,47 @@ tor.newIdentity()   // every later stream uses fresh circuits; open streams are 
 anything else your app or a WebView remembers; do that yourself at the same time. Unlike
 the C Tor daemon's `NEWNYM`, it is not rate-limited.
 
+Pooled HTTP connections are covered: each call bumps `tor.identityGeneration`, and
+`tor-ktor` and `tor-okhttp` retire idle connections opened under an older generation, so a
+request issued after `newIdentity()` returns does not pick up a pre-rotation connection from
+the pool. A request that had already taken a connection when you called it (in flight, or
+between the pool's check and the first byte) finishes on that circuit; if that matters,
+wait for outstanding calls before rotating. If you pool connections yourself, record the
+generation when you open one and drop it when the value changes.
+
 ## Streams or SOCKS?
 
 | | `tor.connect()` | `tor.startSocksProxy()` |
 | --- | --- | --- |
 | Local port | none | `127.0.0.1:<port>` |
-| Other apps on the device can use it | no | **yes**, anything can connect to a loopback port |
+| Other apps on the device can use it | no | only without a `password` |
 | Works with | your code, Ktor (`tor-ktor`), OkHttp (`tor-okhttp`) | WebViews, HTTP stacks you can't change |
-| Isolation | `isolation =` argument | SOCKS username/password |
+| Isolation | `isolation =` argument | SOCKS username |
 
 Prefer streams when you own the networking code. Use the proxy for WebViews and HTTP
-stacks you can't change. `tor.socksIpLiteralConnections` counts SOCKS requests that
-arrived with an IP address instead of a hostname, which is how a leaking client shows up.
+stacks you can't change.
+
+## The SOCKS proxy
+
+```kotlin
+val proxy = tor.startSocksProxy(password = randomSecret())   // port 0: any free port
+proxy.url("tab-1")        // socks5h://tab-1:<secret>@127.0.0.1:41823
+proxy.url()               // socks5h://:<secret>@127.0.0.1:41823, the default group
+proxy.close()             // or tor.stopSocksProxy()
+```
+
+- **Set a password** unless the client cannot send SOCKS credentials. A loopback port is
+  reachable by every process on the device; with a password the proxy refuses anyone who
+  does not present it (RFC 1929), and the username becomes the isolation key. Chromium
+  WebViews cannot send credentials, so Android WebView needs an open proxy; keep its
+  lifetime short and stop it when the WebView goes away.
+- It speaks **SOCKS5 `CONNECT`** with hostname, IPv4 and IPv6 addresses. No `BIND`, no
+  `UDP ASSOCIATE`, no SOCKS4.
+- **Hostnames must reach the proxy unresolved** (`socks5h://`, "proxy DNS"). A client that
+  resolves names itself leaks every lookup outside Tor. `tor.socksIpLiteralConnections`
+  counts requests that arrived with an IP literal; if it climbs while you use a client,
+  that client is resolving locally. The matrix below says which ones do.
+- `startSocksProxy()` a second time returns the running proxy, whatever the arguments.
 
 ## HTTP without a proxy
 
@@ -184,7 +253,7 @@ checked against each client's source code:
 | Android `HttpURLConnection` (+ Ktor `Android` engine) | SOCKS proxy | ✅ | ❌ |
 | Ktor `Curl` engine (Linux, Windows, macOS) | SOCKS proxy | ✅ rewritten to `socks5h://` | ✅ credentials in the proxy URL |
 | Ktor `Darwin` engine | SOCKS proxy | ⚠️ unverified | ❌ credentials are dropped |
-| Android WebView | SOCKS proxy (required) | ✅ Chromium resolves on the proxy | ❌ one proxy per process |
+| Android WebView | SOCKS proxy (required, no password) | ✅ Chromium resolves on the proxy | ❌ one proxy per process |
 | WKWebView (iOS 17 / macOS 14) | SOCKS proxy (required) | ⚠️ unverified | ✅ one data store per tab |
 | Desktop `HttpURLConnection` (OpenJDK) | ❌ **don't** | ❌ resolves locally, leaks DNS | — |
 | `java.net.http.HttpClient`, Ktor `Java` engine | ❌ **don't** | ignores SOCKS and connects **directly** | — |
@@ -250,7 +319,7 @@ credentials, so all WebViews share one isolation group.
 ```swift
 let store = WKWebsiteDataStore(forIdentifier: tabId)   // a fresh store per tab
 var socks = ProxyConfiguration(socksv5Proxy: .hostPort(host: "127.0.0.1", port: .init(integerLiteral: port)))
-socks.applyCredential(username: "tab-1", password: "x")  // isolation key
+socks.applyCredential(username: "tab-1", password: secret)  // isolation key + proxy password
 store.proxyConfigurations = [socks]
 ```
 
@@ -265,8 +334,12 @@ does not apply to pooled connections.
 - `bootstrap()` is optional: `connect()` and `startSocksProxy()` call it for you.
 - **Cancellation is real.** Cancelling a coroutine stops the native work: a cancelled
   `bootstrap()` stops Arti's bootstrap, and a cancelled `read()`/`write()` closes its stream.
+  A cancelled `connect()` returns as soon as the native connect finishes or fails; put a
+  `withTimeout` around it if you need a hard bound.
 - `close()` cancels any bootstrap and stops the proxy. Open `TorStream`s keep working until
   you close them.
+- The blocking adapters (`tor-okhttp`) follow socket semantics, not coroutine semantics:
+  OkHttp's connect and read timeouts apply, coroutine cancellation does not.
 - **iOS** suspends your process in the background and its connections drop. Keep the `Tor`
   instance; the next `connect()` after resuming rebuilds circuits from the cached directory.
   Wrap long transfers in a background task.
@@ -290,6 +363,22 @@ does not apply to pooled connections.
 All the glue is Rust; there is no hand-written C. The crate lives in [`native/`](native)
 and Gradle compiles it per target, so no binary is committed to this repository.
 
+## Maturity and provenance
+
+- **Arti is pinned**, not floated: `arti-client = "=0.47.0"` with a committed `Cargo.lock`,
+  and every build runs `cargo --locked`. Arti ships monthly with breaking changes; each bump
+  here is a reviewed release with its own changelog entry, never a silent dependency update.
+- **Toolchain** for the published 0.1.x binaries: Rust 1.93.0 (pinned in
+  [`native/rust-toolchain.toml`](native/rust-toolchain.toml)), Zig 0.17.0 and cargo-zigbuild
+  0.24.0 (Linux and Windows cross-builds, glibc 2.17 floor), cargo-ndk 4.1.2 with NDK
+  28.2.13676358, Xcode 27. [`publish.yml`](.github/workflows/publish.yml) pins the same versions.
+- **Verifying what you download**: Maven Central serves PGP signatures and checksums next
+  to every artifact. Native libraries live inside the artifacts, so one signature covers
+  the Kotlin code and the Rust code it calls.
+- **Size**: about 5–9 MB per architecture, release-built with LTO, symbols stripped.
+- Bundled Rust crates keep their licenses (MIT/Apache-2.0/BSD/ISC family); run
+  `cargo license` in [`native/`](native) for the exact inventory of a given revision.
+
 ## Build & test
 
 You need Rust (`rustup`), plus [cargo-ndk](https://github.com/bbqsrc/cargo-ndk) for Android
@@ -303,6 +392,7 @@ rustup target add aarch64-apple-darwin x86_64-apple-darwin aarch64-apple-ios aar
 ./gradlew jvmTest macosArm64Test                     # desktop, all modules
 ./gradlew iosSimulatorArm64Test                      # iOS simulator (-Ptor.simulator="iPhone 17")
 ./gradlew connectedAndroidTest                       # Android device or emulator
+./gradlew :tor:linkDebugTestLinuxArm64               # then run build/bin/linuxArm64/debugTest/test.kexe in a container
 ./gradlew spotlessCheck detekt apiCheck              # gates
 ```
 

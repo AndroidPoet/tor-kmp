@@ -38,9 +38,17 @@ pub(crate) struct SocksServer {
 }
 
 impl SocksServer {
-    pub(crate) fn start(runtime: &Runtime, port: u16, circuits: Arc<Circuits>) -> io::Result<Self> {
+    /// With a `password`, clients must authenticate (RFC 1929) and present it;
+    /// anonymous clients are refused. Without one, both are accepted.
+    pub(crate) fn start(
+        runtime: &Runtime,
+        port: u16,
+        circuits: Arc<Circuits>,
+        password: Option<Vec<u8>>,
+    ) -> io::Result<Self> {
         let listener = runtime.block_on(TcpListener::bind((Ipv4Addr::LOCALHOST, port)))?;
         let port = listener.local_addr()?.port();
+        let password = Arc::new(password);
         let accept_loop = runtime.spawn(async move {
             // Owned by this task, so aborting the task aborts every connection.
             let mut connections = JoinSet::new();
@@ -49,9 +57,10 @@ impl SocksServer {
                     accepted = listener.accept() => {
                         let Ok((client, _)) = accepted else { continue };
                         let circuits = circuits.clone();
+                        let password = password.clone();
                         connections.spawn(async move {
                             // A failed connection only affects that client.
-                            let _ = serve(client, &circuits).await;
+                            let _ = serve(client, &circuits, password.as_deref()).await;
                         });
                     }
                     // Reap finished connections so the set does not grow forever.
@@ -69,9 +78,9 @@ impl Drop for SocksServer {
     }
 }
 
-async fn serve(mut client: TcpStream, circuits: &Circuits) -> io::Result<()> {
+async fn serve(mut client: TcpStream, circuits: &Circuits, password: Option<&[u8]>) -> io::Result<()> {
     client.set_nodelay(true)?;
-    let isolation = negotiate_auth(&mut client).await?;
+    let isolation = negotiate_auth(&mut client, password).await?;
 
     let mut request = [0u8; 4];
     client.read_exact(&mut request).await?;
@@ -101,7 +110,8 @@ async fn serve(mut client: TcpStream, circuits: &Circuits) -> io::Result<()> {
 }
 
 /// Picks an auth method; returns the isolation key when credentials were sent.
-async fn negotiate_auth(client: &mut TcpStream) -> io::Result<Option<String>> {
+/// With `required_password`, only authenticated clients with that password get in.
+async fn negotiate_auth(client: &mut TcpStream, required_password: Option<&[u8]>) -> io::Result<Option<String>> {
     let mut greeting = [0u8; 2];
     client.read_exact(&mut greeting).await?;
     if greeting[0] != VERSION {
@@ -116,15 +126,30 @@ async fn negotiate_auth(client: &mut TcpStream) -> io::Result<Option<String>> {
         let _subnegotiation_version = client.read_u8().await?;
         let username = read_short_bytes(client).await?;
         let password = read_short_bytes(client).await?;
+        if let Some(required) = required_password {
+            if !constant_time_eq(&password, required) {
+                client.write_all(&[0x01, 0x01]).await?;
+                return Err(io::Error::other("wrong SOCKS password"));
+            }
+            client.write_all(&[0x01, 0x00]).await?;
+            // The password is the proxy's secret, shared by every client; only the
+            // username says which isolation group the client wants.
+            return Ok(Some(isolation_key(&username, &[])));
+        }
         client.write_all(&[0x01, 0x00]).await?;
         return Ok(Some(isolation_key(&username, &password)));
     }
-    if methods.contains(&NO_AUTH) {
+    if required_password.is_none() && methods.contains(&NO_AUTH) {
         client.write_all(&[VERSION, NO_AUTH]).await?;
         return Ok(None);
     }
     client.write_all(&[VERSION, NO_ACCEPTABLE_METHOD]).await?;
     Err(io::Error::other("no acceptable SOCKS auth method"))
+}
+
+/// Compares without short-circuiting on the first differing byte.
+fn constant_time_eq(a: &[u8], b: &[u8]) -> bool {
+    a.len() == b.len() && a.iter().zip(b).fold(0u8, |acc, (x, y)| acc | (x ^ y)) == 0
 }
 
 /// Maps credentials to an isolation key. Hex keeps the encoding unambiguous:
@@ -171,7 +196,15 @@ async fn reply(client: &mut TcpStream, code: u8) -> io::Result<()> {
 
 #[cfg(test)]
 mod tests {
-    use super::isolation_key;
+    use super::{constant_time_eq, isolation_key};
+
+    #[test]
+    fn constant_time_eq_matches_only_identical_bytes() {
+        assert!(constant_time_eq(b"secret", b"secret"));
+        assert!(!constant_time_eq(b"secret", b"secreT"));
+        assert!(!constant_time_eq(b"secret", b"secre"));
+        assert!(constant_time_eq(b"", b""));
+    }
 
     #[test]
     fn isolation_key_with_colons_in_credentials_does_not_collide() {

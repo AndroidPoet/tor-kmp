@@ -19,7 +19,9 @@ import kotlinx.coroutines.sync.Mutex
 import kotlinx.coroutines.sync.withLock
 import kotlinx.coroutines.withContext
 import kotlin.concurrent.atomics.AtomicBoolean
+import kotlin.concurrent.atomics.AtomicLong
 import kotlin.concurrent.atomics.AtomicReference
+import kotlin.concurrent.atomics.incrementAndFetch
 
 /**
  * An embedded Tor client, running Arti (the Tor Project's Rust implementation)
@@ -44,6 +46,21 @@ public class Tor(
     private val handle = AtomicReference<NativeHandle?>(null)
     private val closed = AtomicBoolean(false)
     private val bootstrapLock = Mutex()
+    private val identityCounter = AtomicLong(0)
+    private val socksProxy = AtomicReference<SocksProxy?>(null)
+    private val socksLock = Mutex()
+    private val socksStops = AtomicLong(0)
+
+    /**
+     * Increases by one on every [newIdentity]. Connection pools record it when a
+     * connection is made and retire idle connections that no longer match, so a
+     * request issued after [newIdentity] does not pick up a pre-rotation
+     * connection from the pool. `tor-ktor` and `tor-okhttp` do this for you; a
+     * request that had already taken a connection when [newIdentity] ran finishes
+     * on it.
+     */
+    public val identityGeneration: Long
+        get() = identityCounter.load()
 
     /**
      * Connects to the Tor network, suspending until it is ready for traffic.
@@ -144,16 +161,38 @@ public class Tor(
     /**
      * Starts a SOCKS5 proxy on 127.0.0.1 for clients that can only use a proxy,
      * bootstrapping first if needed. [port] 0 picks a free port. Calling it again
-     * returns the running proxy.
+     * returns the running proxy, whatever the arguments.
+     *
+     * Any process on the device can reach a loopback port. With a [password], the
+     * proxy refuses clients that do not authenticate with it ([SocksProxy.url]
+     * includes it); use one unless the client cannot send SOCKS credentials, as a
+     * Chromium WebView cannot.
      *
      * @throws TorException if the port cannot be bound or the client is closed.
      */
-    public suspend fun startSocksProxy(port: Int = 0): SocksProxy {
+    public suspend fun startSocksProxy(
+        port: Int = 0,
+        password: String? = null,
+    ): SocksProxy {
         require(port == 0 || port in PORT_RANGE) { "port $port is not 0 or in $PORT_RANGE" }
+        require(password == null || password.isNotEmpty()) { "password must not be empty; pass null for no authentication" }
         bootstrap()
-        val tor = openHandle()
-        val bound = withContext(Dispatchers.IO) { tor.use { TorBridge.startSocks(it, port) } }
-        return SocksProxy(host = "127.0.0.1", port = bound)
+        // Serialised, so two callers cannot start servers with different passwords and
+        // each believe theirs won; the native side only ever keeps the first.
+        socksLock.withLock {
+            while (true) {
+                socksProxy.load()?.let { return it }
+                val stopsBefore = socksStops.load()
+                val tor = openHandle()
+                val bound = withContext(Dispatchers.IO) { tor.use { TorBridge.startSocks(it, port, password) } }
+                val proxy = SocksProxy(host = "127.0.0.1", port = bound, password = password, stop = ::stopSocksProxy)
+                // A stop that landed between the native start and here killed that server; start again.
+                if (socksStops.load() == stopsBefore) {
+                    socksProxy.store(proxy)
+                    return proxy
+                }
+            }
+        }
     }
 
     /**
@@ -166,15 +205,22 @@ public class Tor(
 
     /** Stops the SOCKS proxy, ending its connections. No-op if none is running. */
     public fun stopSocksProxy() {
+        socksProxy.store(null)
+        socksStops.incrementAndFetch()
         handle.load()?.takeUnless { it.isClosed }?.use(TorBridge::stopSocks)
     }
 
     /**
      * Routes every stream opened from now on over fresh circuits, unlinkable to
-     * earlier ones, and forgets all isolation keys. Open streams are left alone.
+     * earlier ones, and forgets all isolation keys. Open streams are left alone;
+     * pooled HTTP connections are retired through [identityGeneration].
+     *
+     * This is circuit rotation only. It does not touch cookies, caches, sessions
+     * or anything else your app or a WebView remembers; clear those yourself.
      */
     public fun newIdentity() {
         handle.load()?.takeUnless { it.isClosed }?.use(TorBridge::newIdentity)
+        identityCounter.incrementAndFetch()
     }
 
     /**
@@ -183,6 +229,7 @@ public class Tor(
      */
     override fun close() {
         if (!closed.compareAndSet(expectedValue = false, newValue = true)) return
+        socksProxy.store(null)
         handle.load()?.close()
         mutableState.value = TorState.Closed
     }

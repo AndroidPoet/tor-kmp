@@ -63,6 +63,7 @@ internal expect object TorBridge {
     fun startSocks(
         tor: Long,
         port: Int,
+        password: String?,
     ): Int
 
     fun socksIpConnects(tor: Long): Long

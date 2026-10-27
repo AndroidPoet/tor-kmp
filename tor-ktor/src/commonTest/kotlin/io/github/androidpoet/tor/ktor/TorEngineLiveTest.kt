@@ -48,6 +48,17 @@ class TorEngineLiveTest {
         }
 
     @Test
+    fun test_get_afterNewIdentity_retiresPooledConnectionAndSucceeds() =
+        live { client, tor ->
+            val before = client.get("https://check.torproject.org/api/ip").bodyAsText()
+            tor.newIdentity()
+
+            val after = client.get("https://check.torproject.org/api/ip").bodyAsText()
+
+            assertTrue(before.contains("\"IsTor\":true") && after.contains("\"IsTor\":true"), "$before / $after")
+        }
+
+    @Test
     fun test_post_withBody_isEchoedBack() =
         live { client ->
             val response =
@@ -59,11 +70,13 @@ class TorEngineLiveTest {
             assertTrue(response.bodyAsText().contains("hello from tor-kmp"))
         }
 
-    private fun live(block: suspend (HttpClient) -> Unit) =
+    private fun live(block: suspend (HttpClient) -> Unit) = live { client, _ -> block(client) }
+
+    private fun live(block: suspend (HttpClient, Tor) -> Unit) =
         runTest(timeout = 4.minutes) {
             withContext(Dispatchers.Default) {
                 Tor(TorConfig(testDataDirectory())).use { tor ->
-                    HttpClient(TorEngine) { engine { this.tor = tor } }.use { block(it) }
+                    HttpClient(TorEngine) { engine { this.tor = tor } }.use { block(it, tor) }
                 }
             }
         }

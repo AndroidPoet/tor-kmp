@@ -50,7 +50,7 @@ fun rustBuild(triple: String): TaskProvider<Exec> =
         tasks.register<Exec>("rustBuild${camel(triple)}") {
             group = "rust"
             workingDir = nativeDir
-            commandLine(cargo, if (zig) "zigbuild" else "build", "--release", "--target", cargoTarget, "--features", "jni")
+            commandLine(cargo, if (zig) "zigbuild" else "build", "--locked", "--release", "--target", cargoTarget, "--features", "jni")
             inputs.dir(nativeDir.resolve("src"))
             inputs.files(nativeDir.resolve("Cargo.toml"), nativeDir.resolve("Cargo.lock"), nativeDir.resolve(".cargo/config.toml"))
             outputs.dir(outputDir)
@@ -89,7 +89,7 @@ val rustBuildAndroid =
             buildList {
                 addAll(listOf(cargo, "ndk", "--platform", Configuration.MIN_SDK.toString()))
                 androidAbis.keys.forEach { addAll(listOf("-t", it)) }
-                addAll(listOf("build", "--release", "--features", "jni"))
+                addAll(listOf("build", "--locked", "--release", "--features", "jni"))
             },
         )
         inputs.dir(nativeDir.resolve("src"))

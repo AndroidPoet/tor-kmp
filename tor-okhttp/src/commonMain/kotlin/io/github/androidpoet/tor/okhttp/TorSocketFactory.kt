@@ -103,6 +103,7 @@ private class TorSocket(
     private var endpoint: InetSocketAddress? = null
     private var input: TorInputStream? = null
     private var output: TorOutputStream? = null
+    private var identityGeneration = 0L
 
     @Volatile private var soTimeoutMillis = 0
 
@@ -129,6 +130,7 @@ private class TorSocket(
                     // The connect timeout bounds opening the stream, like a TCP connect;
                     // a first-ever bootstrap takes longer than any sane connect timeout.
                     tor.bootstrap()
+                    identityGeneration = tor.identityGeneration
                     if (timeout > 0) {
                         withTimeout(timeout.toLong()) { tor.connect(host, address.port, isolation) }
                     } else {
@@ -149,7 +151,9 @@ private class TorSocket(
 
     override fun isClosed(): Boolean = closed
 
-    override fun isInputShutdown(): Boolean = inputShutdown
+    // Reported as shut down after newIdentity(): OkHttp's health check then retires the
+    // pooled connection instead of sending a post-rotation request over an old circuit.
+    override fun isInputShutdown(): Boolean = inputShutdown || identityGeneration != tor.identityGeneration
 
     override fun isOutputShutdown(): Boolean = outputShutdown
 

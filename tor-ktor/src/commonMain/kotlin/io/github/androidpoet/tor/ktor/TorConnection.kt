@@ -20,6 +20,8 @@ internal class TorConnection(
     val key: ConnectionKey,
     private val stream: TorStream,
     scope: CoroutineScope,
+    /** [Tor.identityGeneration] when the stream was opened; a later value retires the connection. */
+    val identityGeneration: Long,
 ) {
     /** Bytes from the server. The pump ends when the stream does. */
     val input: ByteReadChannel =
@@ -80,28 +82,30 @@ internal class ConnectionPool(
         val expiry: Job,
     )
 
-    /** An idle connection for [key] if one is still alive, otherwise a new one. */
+    /** An idle connection for [key] if one is still usable, otherwise a new one. */
     suspend fun acquire(key: ConnectionKey): TorConnection {
         while (true) {
             val reused =
                 lock.withLock { idle[key]?.removeFirstOrNull() }
                     ?: break
             reused.expiry.cancel()
-            if (reused.connection.isAlive) return reused.connection
+            if (reused.connection.isUsable) return reused.connection
             reused.connection.close()
         }
+        // Read before connecting: a newIdentity() during the connect must retire this one too.
+        val generation = tor.identityGeneration
         val stream =
             if (key.tls) {
                 tor.connectTls(key.host, key.port, isolation)
             } else {
                 tor.connect(key.host, key.port, isolation)
             }
-        return TorConnection(key, stream, scope)
+        return TorConnection(key, stream, scope, generation)
     }
 
     /** Keeps [connection] for a later request, or closes it when the pool for its host is full. */
     suspend fun release(connection: TorConnection) {
-        if (!connection.isAlive) {
+        if (!connection.isUsable) {
             connection.close()
             return
         }
@@ -125,6 +129,10 @@ internal class ConnectionPool(
             it.connection.close()
         }
     }
+
+    /** Alive, and opened since the last [Tor.newIdentity]. */
+    private val TorConnection.isUsable: Boolean
+        get() = isAlive && identityGeneration == tor.identityGeneration
 
     private suspend fun evict(connection: TorConnection) {
         val removed =

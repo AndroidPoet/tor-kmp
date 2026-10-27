@@ -274,12 +274,27 @@ pub extern "system" fn Java_io_github_androidpoet_tor_internal_TorBridge_startSo
     _class: JClass,
     tor: jlong,
     port: jint,
+    password: JString,
 ) -> jint {
     let Ok(port) = u16::try_from(port) else {
         throw(&mut env, "port out of range");
         return -1;
     };
-    let bound = unsafe { torkmp_socks_start(tor as *const TorKmp, port) };
+    let password = if password.is_null() {
+        None
+    } else {
+        let Ok(text) = env.get_string(&password) else {
+            throw(&mut env, "password is not a valid string");
+            return -1;
+        };
+        let Ok(c_text) = std::ffi::CString::new(String::from(text)) else {
+            throw(&mut env, "password must not contain NUL");
+            return -1;
+        };
+        Some(c_text)
+    };
+    let password_ptr = password.as_ref().map_or(std::ptr::null(), |c| c.as_ptr());
+    let bound = unsafe { torkmp_socks_start(tor as *const TorKmp, port, password_ptr) };
     if bound < 0 {
         throw_last_error(&mut env);
     }

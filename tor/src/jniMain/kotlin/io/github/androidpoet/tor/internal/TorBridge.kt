@@ -58,6 +58,7 @@ internal actual object TorBridge {
     @JvmStatic actual external fun startSocks(
         tor: Long,
         port: Int,
+        password: String?,
     ): Int
 
     @JvmStatic actual external fun socksIpConnects(tor: Long): Long

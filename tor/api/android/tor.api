@@ -20,10 +20,12 @@ public final class io/github/androidpoet/tor/BlockageKind : java/lang/Enum {
 	public static fun values ()[Lio/github/androidpoet/tor/BlockageKind;
 }
 
-public final class io/github/androidpoet/tor/SocksProxy {
-	public fun <init> (Ljava/lang/String;I)V
+public final class io/github/androidpoet/tor/SocksProxy : java/lang/AutoCloseable {
+	public static final field PLACEHOLDER_PASSWORD Ljava/lang/String;
+	public fun close ()V
 	public fun equals (Ljava/lang/Object;)Z
 	public final fun getHost ()Ljava/lang/String;
+	public final fun getPassword ()Ljava/lang/String;
 	public final fun getPort ()I
 	public fun hashCode ()I
 	public fun toString ()Ljava/lang/String;
@@ -41,11 +43,12 @@ public final class io/github/androidpoet/tor/Tor : java/lang/AutoCloseable {
 	public static synthetic fun connect$default (Lio/github/androidpoet/tor/Tor;Ljava/lang/String;ILjava/lang/String;Lkotlin/coroutines/Continuation;ILjava/lang/Object;)Ljava/lang/Object;
 	public final fun connectTls (Ljava/lang/String;ILjava/lang/String;Lkotlin/coroutines/Continuation;)Ljava/lang/Object;
 	public static synthetic fun connectTls$default (Lio/github/androidpoet/tor/Tor;Ljava/lang/String;ILjava/lang/String;Lkotlin/coroutines/Continuation;ILjava/lang/Object;)Ljava/lang/Object;
+	public final fun getIdentityGeneration ()J
 	public final fun getSocksIpLiteralConnections ()J
 	public final fun getState ()Lkotlinx/coroutines/flow/StateFlow;
 	public final fun newIdentity ()V
-	public final fun startSocksProxy (ILkotlin/coroutines/Continuation;)Ljava/lang/Object;
-	public static synthetic fun startSocksProxy$default (Lio/github/androidpoet/tor/Tor;ILkotlin/coroutines/Continuation;ILjava/lang/Object;)Ljava/lang/Object;
+	public final fun startSocksProxy (ILjava/lang/String;Lkotlin/coroutines/Continuation;)Ljava/lang/Object;
+	public static synthetic fun startSocksProxy$default (Lio/github/androidpoet/tor/Tor;ILjava/lang/String;Lkotlin/coroutines/Continuation;ILjava/lang/Object;)Ljava/lang/Object;
 	public final fun stopSocksProxy ()V
 }
 

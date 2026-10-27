@@ -31,7 +31,7 @@ int32_t torkmp_stream_write(const TorKmpStream *stream, const uint8_t *buffer, s
 void torkmp_stream_shutdown(const TorKmpStream *stream);
 void torkmp_stream_free(TorKmpStream *stream);
 
-int32_t torkmp_socks_start(const TorKmp *tor, uint16_t port);
+int32_t torkmp_socks_start(const TorKmp *tor, uint16_t port, const char *password);
 uint64_t torkmp_socks_ip_connects(const TorKmp *tor);
 void torkmp_socks_stop(const TorKmp *tor);
 

@@ -24,15 +24,17 @@ jobs:
 
       - uses: gradle/actions/setup-gradle@v4
 
+      # The compiler and its targets come from native/rust-toolchain.toml; the
+      # cross tools are pinned here. Bump all of them together, with Arti.
       - name: Install Rust toolchains
         run: |
-          rustup target add aarch64-apple-darwin x86_64-apple-darwin \
-            aarch64-apple-ios aarch64-apple-ios-sim x86_64-apple-ios \
-            aarch64-linux-android armv7-linux-androideabi x86_64-linux-android i686-linux-android \
-            x86_64-unknown-linux-gnu aarch64-unknown-linux-gnu x86_64-pc-windows-gnu
-          brew install zig
-          cargo install cargo-zigbuild cargo-ndk --locked
-
+          rustup show active-toolchain || rustup toolchain install
+          (cd native && rustup show)
+          cargo install cargo-zigbuild --version 0.24.0 --locked
+          cargo install cargo-ndk --version 4.1.2 --locked
+      - uses: mlugg/setup-zig@v2
+        with:
+          version: 0.17.0
       - name: Formatting (spotlessCheck)
         run: ./gradlew spotlessCheck
 

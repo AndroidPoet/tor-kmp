@@ -449,16 +449,26 @@ pub unsafe extern "C" fn torkmp_stream_free(stream: *mut TorKmpStream) {
 }
 
 /// Starts a SOCKS5 proxy on 127.0.0.1 for clients that only speak proxies
-/// (WebViews, OkHttp, Ktor). `port` 0 picks a free one. Returns the bound port,
-/// or -1. Calling it again returns the running proxy's port.
+/// (WebViews, HTTP stacks you cannot change). `port` 0 picks a free one. With a
+/// non-NULL `password`, clients must authenticate with it; anonymous clients are
+/// refused. Returns the bound port, or -1. Calling it again returns the running
+/// proxy's port and ignores the arguments.
 #[no_mangle]
-pub unsafe extern "C" fn torkmp_socks_start(tor: *const TorKmp, port: u16) -> i32 {
+pub unsafe extern "C" fn torkmp_socks_start(tor: *const TorKmp, port: u16, password: *const c_char) -> i32 {
     let tor = &*tor;
+    let password = if password.is_null() {
+        None
+    } else {
+        match arg_str(password, "password") {
+            Some(password) => Some(password.as_bytes().to_vec()),
+            None => return -1,
+        }
+    };
     let mut slot = tor.socks.lock().unwrap();
     if let Some(server) = slot.as_ref() {
         return i32::from(server.port);
     }
-    match socks::SocksServer::start(&tor.runtime, port, tor.circuits.clone()) {
+    match socks::SocksServer::start(&tor.runtime, port, tor.circuits.clone(), password) {
         Ok(server) => {
             let bound = server.port;
             *slot = Some(server);

@@ -115,7 +115,8 @@ internal actual object TorBridge {
     actual fun startSocks(
         tor: Long,
         port: Int,
-    ): Int = torkmp_socks_start(tor.client, port.convert()).also { if (it < 0) throwLastError() }
+        password: String?,
+    ): Int = torkmp_socks_start(tor.client, port.convert(), password).also { if (it < 0) throwLastError() }
 
     actual fun socksIpConnects(tor: Long): Long = torkmp_socks_ip_connects(tor.client).toLong()
 

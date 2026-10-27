@@ -4,6 +4,32 @@ All notable changes to this project are documented here. The format is based on
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and this project
 adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## 0.1.1 - 2026-10-27
+
+Follow-up to an architecture review: tighter identity and SOCKS contracts while
+they are young.
+
+### Added
+
+- `Tor.startSocksProxy(port, password)` — with a password the proxy refuses clients
+  that do not authenticate with it (RFC 1929), so other processes on the device
+  cannot use it. The SOCKS username is then the isolation key.
+- `SocksProxy.password` and `SocksProxy.close()`; `SocksProxy.url()` percent-encodes
+  the isolation key and password, so any string is safe.
+- `Tor.identityGeneration` — increases on every `newIdentity()`. `tor-ktor` and
+  `tor-okhttp` retire idle pooled connections opened under an older generation, so
+  a request issued after `newIdentity()` does not reuse a pre-rotation connection
+  (one already in flight finishes where it is).
+- README: "What it is, and what it is not" (not a VPN or kill switch, not Tor
+  Browser, what isolation keys and the data directory mean), a SOCKS section, and
+  "Maturity and provenance" (pins, toolchain, how to verify artifacts).
+
+### Changed
+
+- `SocksProxy` can no longer be constructed directly; it comes from
+  `Tor.startSocksProxy()`, which now returns the same instance while the proxy runs.
+- Rust builds run `cargo --locked`, so a release always matches `Cargo.lock`.
+
 ## 0.1.0 - 2026-10-27
 
 First release: an embedded Tor client for Kotlin Multiplatform, built on
