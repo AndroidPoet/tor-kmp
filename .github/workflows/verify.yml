@@ -150,13 +150,13 @@ jobs:
       - name: Unit tests (no network)
         shell: bash
         run: |
-          timeout 120 tor/build/bin/mingwX64/debugTest/test.kexe --ktest_logger=SIMPLE \
+          timeout 120 tor/build/bin/mingwX64/debugTest/test.exe --ktest_logger=SIMPLE \
             --ktest_filter='io.github.androidpoet.tor.ValueSemanticsTest.*:io.github.androidpoet.tor.internal.NativeHandleTest.*'
       - name: Live tests, tor
         shell: bash
         run: |
-          timeout 900 tor/build/bin/mingwX64/debugTest/test.kexe --ktest_logger=SIMPLE \
+          timeout 900 tor/build/bin/mingwX64/debugTest/test.exe --ktest_logger=SIMPLE \
             --ktest_filter='io.github.androidpoet.tor.TorLiveTest.*'
       - name: Live tests, tor-ktor
         shell: bash
-        run: timeout 900 tor-ktor/build/bin/mingwX64/debugTest/test.kexe --ktest_logger=SIMPLE
+        run: timeout 900 tor-ktor/build/bin/mingwX64/debugTest/test.exe --ktest_logger=SIMPLE

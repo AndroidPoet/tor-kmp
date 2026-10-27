@@ -188,7 +188,10 @@ through `engine { preconfigured = client }`.
 
 In both adapters the connect timeout (`connectTimeout` / `HttpTimeout.connectTimeoutMillis`)
 bounds opening the Tor stream, like a TCP connect. It does not cover Tor's first bootstrap,
-which runs before it; call `tor.bootstrap()` yourself to bound or display that.
+which runs before it; call `tor.bootstrap()` yourself to bound or display that. A Tor stream
+takes longer to open than a TCP connection, and a first `.onion` connection longer still (a
+descriptor fetch plus a rendezvous, often 5–20 s), so OkHttp's 10 s default `connectTimeout`
+is tight for onion services; 30–60 s is a better fit.
 
 ### SOCKS proxy
 

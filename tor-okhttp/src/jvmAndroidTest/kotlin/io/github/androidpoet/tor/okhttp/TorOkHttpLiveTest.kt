@@ -5,6 +5,7 @@ import io.github.androidpoet.tor.TorConfig
 import okhttp3.OkHttpClient
 import okhttp3.Request
 import okhttp3.RequestBody.Companion.toRequestBody
+import java.util.concurrent.TimeUnit
 import kotlin.test.Test
 import kotlin.test.assertEquals
 import kotlin.test.assertTrue
@@ -50,7 +51,13 @@ class TorOkHttpLiveTest {
 
     private fun live(block: (OkHttpClient) -> Unit) {
         Tor(TorConfig(System.getProperty("java.io.tmpdir") + "/tor-kmp-test-okhttp")).use { tor ->
-            val client = OkHttpClient.Builder().tor(tor).build()
+            // OkHttp's 10 s default is tight for a first onion connection on a cold client.
+            val client =
+                OkHttpClient
+                    .Builder()
+                    .tor(tor)
+                    .connectTimeout(1, TimeUnit.MINUTES)
+                    .build()
             try {
                 block(client)
             } finally {
