@@ -113,11 +113,7 @@ async fn negotiate_auth(client: &mut TcpStream) -> io::Result<Option<String>> {
         let username = read_short_bytes(client).await?;
         let password = read_short_bytes(client).await?;
         client.write_all(&[0x01, 0x00]).await?;
-        let mut key = b"socks:".to_vec();
-        key.extend_from_slice(&username);
-        key.push(b':');
-        key.extend_from_slice(&password);
-        return Ok(Some(String::from_utf8_lossy(&key).into_owned()));
+        return Ok(Some(isolation_key(&username, &password)));
     }
     if methods.contains(&NO_AUTH) {
         client.write_all(&[VERSION, NO_AUTH]).await?;
@@ -125,6 +121,13 @@ async fn negotiate_auth(client: &mut TcpStream) -> io::Result<Option<String>> {
     }
     client.write_all(&[VERSION, NO_ACCEPTABLE_METHOD]).await?;
     Err(io::Error::other("no acceptable SOCKS auth method"))
+}
+
+/// Maps credentials to an isolation key. Hex keeps the encoding unambiguous:
+/// ("a:b", "c") and ("a", "b:c") must not land in the same group.
+fn isolation_key(username: &[u8], password: &[u8]) -> String {
+    let hex = |bytes: &[u8]| bytes.iter().map(|b| format!("{b:02x}")).collect::<String>();
+    format!("socks:{}:{}", hex(username), hex(password))
 }
 
 /// Reads the target host. Domains stay names so the exit relay resolves them.
@@ -160,4 +163,25 @@ async fn reply(client: &mut TcpStream, code: u8) -> io::Result<()> {
     client
         .write_all(&[VERSION, code, 0x00, ATYP_IPV4, 0, 0, 0, 0, 0, 0])
         .await
+}
+
+#[cfg(test)]
+mod tests {
+    use super::isolation_key;
+
+    #[test]
+    fn isolation_key_with_colons_in_credentials_does_not_collide() {
+        let first = isolation_key(b"a:b", b"c");
+        let second = isolation_key(b"a", b"b:c");
+
+        assert_ne!(first, second);
+    }
+
+    #[test]
+    fn isolation_key_with_invalid_utf8_keeps_distinct_bytes_distinct() {
+        let first = isolation_key(&[0xff], b"");
+        let second = isolation_key(&[0xfe], b"");
+
+        assert_ne!(first, second);
+    }
 }
