@@ -10,3 +10,5 @@ local.properties
 
 # Rust build output (native binaries are built by Gradle, never committed)
 native/target/
+native/vendor/*/target/
+native/vendor/*/Cargo.lock

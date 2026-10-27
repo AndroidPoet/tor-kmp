@@ -48,9 +48,9 @@ adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
   `saturating-time` 0.5.0 searches for the platform's minimum `SystemTime` with 1 ns
   steps, and on Windows the clock moves in 100 ns ticks, so the search never ended;
   the consensus parser hit it on every bootstrap (arti#2678, arti#2823). The crate is
-  vendored with the two-line fix under `native/vendor/` until a fixed release ships
-  (#1). The Windows core is now built for `x86_64-pc-windows-gnullvm`, which makes
-  the DLL inside the jar 6.9 MB instead of 17 MB.
+  vendored under `native/vendor/` with a small fix (no movement counts as the limit,
+  the search only runs on overflow) until a fixed release ships
+  (#1). The Windows core is now built for `x86_64-pc-windows-gnullvm`.
 - Native errors now carry their whole cause chain, so a failure deep in Arti names
   its root cause (a locked state file, an unreadable directory) instead of only the
   layer that wrapped it.
