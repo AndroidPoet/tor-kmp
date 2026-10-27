@@ -7,8 +7,8 @@ import kotlin.test.assertNotEquals
 class ValueSemanticsTest {
     @Test
     fun test_bootstrapping_sameValues_areEqualSoStateFlowSkipsDuplicates() {
-        val first = TorState.Bootstrapping(progress = 0.5f, blockedReason = null)
-        val second = TorState.Bootstrapping(progress = 0.5f, blockedReason = null)
+        val first = TorState.Bootstrapping(progress = 0.5f, blockage = null)
+        val second = TorState.Bootstrapping(progress = 0.5f, blockage = null)
 
         assertEquals(first, second)
         assertEquals(first.hashCode(), second.hashCode())
@@ -16,8 +16,8 @@ class ValueSemanticsTest {
 
     @Test
     fun test_bootstrapping_differentProgress_areNotEqual() {
-        val first = TorState.Bootstrapping(progress = 0.5f, blockedReason = null)
-        val second = TorState.Bootstrapping(progress = 0.6f, blockedReason = null)
+        val first = TorState.Bootstrapping(progress = 0.5f, blockage = null)
+        val second = TorState.Bootstrapping(progress = 0.6f, blockage = null)
 
         assertNotEquals(first, second)
     }

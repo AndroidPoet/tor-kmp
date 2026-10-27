@@ -16,11 +16,14 @@ use std::collections::HashMap;
 use std::ffi::{c_char, CStr, CString};
 use std::sync::{Arc, Mutex};
 
+use std::sync::atomic::{AtomicU64, Ordering};
+
 use arti_client::config::TorClientConfigBuilder;
-use arti_client::{
-    BootstrapBehavior, DataReader, DataStream, DataWriter, IsolationToken, StreamPrefs, TorClient,
-};
-use futures::{AsyncReadExt, AsyncWriteExt};
+use arti_client::{BootstrapBehavior, DataStream, IsolationToken, StreamPrefs, TorClient};
+use futures::{AsyncRead, AsyncReadExt, AsyncWrite, AsyncWriteExt};
+use futures_rustls::rustls::pki_types::ServerName;
+use futures_rustls::rustls::{ClientConfig, RootCertStore};
+use futures_rustls::TlsConnector;
 use tokio::runtime::Runtime;
 use tokio::sync::watch;
 use tor_rtcompat::PreferredRuntime;
@@ -43,14 +46,47 @@ pub(crate) struct Circuits {
     /// circuits with streams opened before.
     current: Mutex<Arc<Client>>,
     isolation_groups: Mutex<HashMap<String, IsolationToken>>,
+    /// SOCKS CONNECTs that carried an IP address instead of a hostname: the
+    /// client resolved DNS itself, outside Tor.
+    pub(crate) socks_ip_connects: AtomicU64,
 }
 
-/// One Tor stream, split so a blocked read never stalls a write.
+type Reader = Box<dyn AsyncRead + Send + Unpin>;
+type Writer = Box<dyn AsyncWrite + Send + Unpin>;
+
+/// One Tor stream (plain or TLS), split so a blocked read never stalls a write.
 pub struct TorKmpStream {
     runtime: Arc<Runtime>,
-    reader: tokio::sync::Mutex<DataReader>,
-    writer: tokio::sync::Mutex<DataWriter>,
+    reader: tokio::sync::Mutex<Reader>,
+    writer: tokio::sync::Mutex<Writer>,
     shutdown: watch::Sender<bool>,
+}
+
+impl TorKmpStream {
+    fn new(runtime: Arc<Runtime>, reader: Reader, writer: Writer) -> *mut Self {
+        Box::into_raw(Box::new(Self {
+            runtime,
+            reader: tokio::sync::Mutex::new(reader),
+            writer: tokio::sync::Mutex::new(writer),
+            shutdown: watch::channel(false).0,
+        }))
+    }
+}
+
+/// TLS client settings shared by every `torkmp_connect_tls`: Mozilla's root
+/// store, rustls defaults (TLS 1.2 and 1.3), HTTP/1.1 offered via ALPN.
+fn tls_connector() -> TlsConnector {
+    static CONFIG: std::sync::OnceLock<Arc<ClientConfig>> = std::sync::OnceLock::new();
+    let config = CONFIG.get_or_init(|| {
+        let mut roots = RootCertStore::empty();
+        roots.extend(webpki_roots::TLS_SERVER_ROOTS.iter().cloned());
+        let mut config = ClientConfig::builder()
+            .with_root_certificates(roots)
+            .with_no_client_auth();
+        config.alpn_protocols = vec![b"http/1.1".to_vec()];
+        Arc::new(config)
+    });
+    TlsConnector::from(config.clone())
 }
 
 thread_local! {
@@ -152,6 +188,7 @@ pub unsafe extern "C" fn torkmp_create(
             circuits: Arc::new(Circuits {
                 current: Mutex::new(client),
                 isolation_groups: Mutex::new(HashMap::new()),
+                socks_ip_connects: AtomicU64::new(0),
             }),
             socks: Mutex::new(None),
             running_bootstrap: Mutex::new(None),
@@ -220,6 +257,26 @@ pub unsafe extern "C" fn torkmp_blocked_reason(tor: *const TorKmp) -> *mut c_cha
     }
 }
 
+/// Which kind of blockage `torkmp_blocked_reason` describes, as a stable code:
+/// 0 none, 1 disabled, 2 offline, 3 filtering, 4 can't reach Tor, 5 clock skewed,
+/// 6 can't bootstrap, 7 other (an Arti kind this build does not know).
+#[no_mangle]
+pub unsafe extern "C" fn torkmp_blocked_kind(tor: *const TorKmp) -> i32 {
+    use arti_client::status::BlockageKind;
+    match (&(*tor).circuits).client().bootstrap_status().blocked() {
+        None => 0,
+        Some(blockage) => match blockage.kind() {
+            BlockageKind::Disabled => 1,
+            BlockageKind::Offline => 2,
+            BlockageKind::Filtering => 3,
+            BlockageKind::CantReachTor => 4,
+            BlockageKind::ClockSkewed => 5,
+            BlockageKind::CantBootstrap => 6,
+            _ => 7,
+        },
+    }
+}
+
 /// Makes every later stream use fresh circuits, unlinkable to earlier ones.
 /// Streams already open are left alone.
 #[no_mangle]
@@ -228,6 +285,20 @@ pub unsafe extern "C" fn torkmp_new_identity(tor: *const TorKmp) {
     let mut current = circuits.current.lock().unwrap();
     *current = current.isolated_client();
     circuits.isolation_groups.lock().unwrap().clear();
+}
+
+/// Reads the (host, isolation) arguments shared by the connect functions.
+unsafe fn connect_args<'a>(
+    host: *const c_char,
+    isolation: *const c_char,
+) -> Option<(&'a str, Option<&'a str>)> {
+    let host = arg_str(host, "host")?;
+    let isolation = if isolation.is_null() {
+        None
+    } else {
+        Some(arg_str(isolation, "isolation")?)
+    };
+    Some((host, isolation))
 }
 
 /// Opens a stream to `host:port` through Tor. The exit relay resolves `host`,
@@ -241,29 +312,57 @@ pub unsafe extern "C" fn torkmp_connect(
     isolation: *const c_char,
 ) -> *mut TorKmpStream {
     let tor = &*tor;
-    let Some(host) = arg_str(host, "host") else {
+    let Some((host, isolation)) = connect_args(host, isolation) else {
         return std::ptr::null_mut();
-    };
-    let isolation = if isolation.is_null() {
-        None
-    } else {
-        match arg_str(isolation, "isolation") {
-            Some(key) => Some(key),
-            None => return std::ptr::null_mut(),
-        }
     };
     match tor.runtime.block_on(tor.circuits.open(host, port, isolation)) {
         Ok(stream) => {
             let (reader, writer) = stream.split();
-            Box::into_raw(Box::new(TorKmpStream {
-                runtime: tor.runtime.clone(),
-                reader: tokio::sync::Mutex::new(reader),
-                writer: tokio::sync::Mutex::new(writer),
-                shutdown: watch::channel(false).0,
-            }))
+            TorKmpStream::new(tor.runtime.clone(), Box::new(reader), Box::new(writer))
         }
         Err(error) => {
             set_error(format!("connect to {host}:{port} failed: {error}"));
+            std::ptr::null_mut()
+        }
+    }
+}
+
+/// Like `torkmp_connect`, then completes a TLS handshake with `host` as the
+/// server name, verifying the certificate against Mozilla's root store. The
+/// returned stream carries plaintext; TLS happens inside.
+#[no_mangle]
+pub unsafe extern "C" fn torkmp_connect_tls(
+    tor: *const TorKmp,
+    host: *const c_char,
+    port: u16,
+    isolation: *const c_char,
+) -> *mut TorKmpStream {
+    let tor = &*tor;
+    let Some((host, isolation)) = connect_args(host, isolation) else {
+        return std::ptr::null_mut();
+    };
+    let Ok(server_name) = ServerName::try_from(host.to_owned()) else {
+        set_error(format!("{host} is not a valid TLS server name"));
+        return std::ptr::null_mut();
+    };
+    let connected = tor.runtime.block_on(async {
+        let stream = tor
+            .circuits
+            .open(host, port, isolation)
+            .await
+            .map_err(|error| format!("connect to {host}:{port} failed: {error}"))?;
+        tls_connector()
+            .connect(server_name, stream)
+            .await
+            .map_err(|error| format!("TLS handshake with {host} failed: {error}"))
+    });
+    match connected {
+        Ok(tls) => {
+            let (reader, writer) = tls.split();
+            TorKmpStream::new(tor.runtime.clone(), Box::new(reader), Box::new(writer))
+        }
+        Err(message) => {
+            set_error(message);
             std::ptr::null_mut()
         }
     }
@@ -370,6 +469,14 @@ pub unsafe extern "C" fn torkmp_socks_start(tor: *const TorKmp, port: u16) -> i3
             -1
         }
     }
+}
+
+/// How many SOCKS CONNECTs so far named an IP address rather than a hostname.
+/// A client that resolves DNS itself leaks every lookup outside Tor; this makes
+/// such a client visible in a test.
+#[no_mangle]
+pub unsafe extern "C" fn torkmp_socks_ip_connects(tor: *const TorKmp) -> u64 {
+    (&(*tor).circuits).socks_ip_connects.load(Ordering::Relaxed)
 }
 
 /// Stops the SOCKS proxy if it is running. Open proxied connections end too.

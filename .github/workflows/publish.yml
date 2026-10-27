@@ -1,0 +1,48 @@
+name: Publish
+
+on:
+  release:
+    # Fire only when a release is actually published, not on drafts/prereleases.
+    types: [published]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  publish:
+    runs-on: macos-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-java@v4
+        with:
+          distribution: zulu
+          java-version: 17
+
+      - uses: gradle/actions/setup-gradle@v4
+
+      # One macOS runner builds the Rust core for every target: cargo for Apple,
+      # cargo-zigbuild for Linux/Windows, cargo-ndk for Android.
+      - name: Install Rust toolchains
+        run: |
+          rustup target add aarch64-apple-darwin x86_64-apple-darwin \
+            aarch64-apple-ios aarch64-apple-ios-sim x86_64-apple-ios \
+            aarch64-linux-android armv7-linux-androideabi x86_64-linux-android i686-linux-android \
+            x86_64-unknown-linux-gnu aarch64-unknown-linux-gnu x86_64-pc-windows-gnu
+          brew install zig
+          cargo install cargo-zigbuild cargo-ndk --locked
+
+      - name: Verify build before publishing
+        run: ./gradlew apiCheck detekt
+
+      # --no-configuration-cache: the vanniktech publish tasks are not yet
+      # configuration-cache compatible; remove once they are.
+      - name: Publish and release to Maven Central
+        run: ./gradlew publishAndReleaseToMavenCentral --no-configuration-cache -Ptor.jvm.allPlatforms=true -Ptor.rust.prune=true
+        env:
+          ORG_GRADLE_PROJECT_mavenCentralUsername: ${{ secrets.MAVEN_CENTRAL_USERNAME }}
+          ORG_GRADLE_PROJECT_mavenCentralPassword: ${{ secrets.MAVEN_CENTRAL_PASSWORD }}
+          ORG_GRADLE_PROJECT_signingInMemoryKeyId: ${{ secrets.SIGNING_KEY_ID }}
+          ORG_GRADLE_PROJECT_signingInMemoryKey: ${{ secrets.SIGNING_KEY }}
+          ORG_GRADLE_PROJECT_signingInMemoryKeyPassword: ${{ secrets.SIGNING_PASSWORD }}

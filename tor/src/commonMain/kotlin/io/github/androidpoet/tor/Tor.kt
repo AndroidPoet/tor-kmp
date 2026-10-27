@@ -59,7 +59,7 @@ public class Tor(
         bootstrapLock.withLock {
             if (mutableState.value == TorState.Ready) return
             val tor = handleOrCreate()
-            mutableState.value = TorState.Bootstrapping(progress = 0f, blockedReason = null)
+            mutableState.value = TorState.Bootstrapping(progress = 0f, blockage = null)
             try {
                 coroutineScope {
                     val progress = launch { publishProgress(tor) }
@@ -99,6 +99,27 @@ public class Tor(
         host: String,
         port: Int,
         isolation: String? = null,
+    ): TorStream = open(host, port, isolation, tls = false)
+
+    /**
+     * Like [connect], then performs a TLS handshake with [host] as the server name.
+     * The certificate is checked against Mozilla's root store; the returned stream
+     * carries plaintext and TLS happens inside the library, identically on every
+     * platform.
+     *
+     * @throws TorException if the connection or the handshake fails, or the client is closed.
+     */
+    public suspend fun connectTls(
+        host: String,
+        port: Int = HTTPS_PORT,
+        isolation: String? = null,
+    ): TorStream = open(host, port, isolation, tls = true)
+
+    private suspend fun open(
+        host: String,
+        port: Int,
+        isolation: String?,
+        tls: Boolean,
     ): TorStream {
         require(port in PORT_RANGE) { "port $port is not in $PORT_RANGE" }
         bootstrap()
@@ -107,7 +128,11 @@ public class Tor(
         // still be freed, so wait for it and close it below.
         val stream =
             withContext(Dispatchers.IO + NonCancellable) {
-                TorStream(tor.use { TorBridge.connect(it, host, port, isolation) })
+                val pointer =
+                    tor.use {
+                        if (tls) TorBridge.connectTls(it, host, port, isolation) else TorBridge.connect(it, host, port, isolation)
+                    }
+                TorStream(pointer)
             }
         if (!currentCoroutineContext().isActive) {
             stream.close()
@@ -130,6 +155,14 @@ public class Tor(
         val bound = withContext(Dispatchers.IO) { tor.use { TorBridge.startSocks(it, port) } }
         return SocksProxy(host = "127.0.0.1", port = bound)
     }
+
+    /**
+     * How many connections to the SOCKS proxy named an IP address instead of a
+     * hostname. A proxy client that resolves DNS itself leaks every lookup outside
+     * Tor; if this number grows while you use such a client, switch clients.
+     */
+    public val socksIpLiteralConnections: Long
+        get() = handle.load()?.takeUnless { it.isClosed }?.use(TorBridge::socksIpConnects) ?: 0L
 
     /** Stops the SOCKS proxy, ending its connections. No-op if none is running. */
     public fun stopSocksProxy() {
@@ -197,10 +230,11 @@ public class Tor(
 
     private suspend fun publishProgress(tor: NativeHandle) {
         while (true) {
+            val kind = BlockageKind.fromCode(tor.use(TorBridge::blockedKind))
             mutableState.value =
                 TorState.Bootstrapping(
                     progress = tor.use(TorBridge::progress),
-                    blockedReason = tor.use(TorBridge::blockedReason),
+                    blockage = kind?.let { Blockage(it, tor.use(TorBridge::blockedReason).orEmpty()) },
                 )
             delay(PROGRESS_INTERVAL_MS)
         }
@@ -208,6 +242,7 @@ public class Tor(
 
     private companion object {
         val PORT_RANGE = 1..65_535
+        const val HTTPS_PORT = 443
         const val PROGRESS_INTERVAL_MS = 250L
     }
 }

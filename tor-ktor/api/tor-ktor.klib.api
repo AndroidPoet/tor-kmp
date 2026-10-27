@@ -1,0 +1,28 @@
+// Klib ABI Dump
+// Targets: [iosArm64, iosSimulatorArm64, iosX64, linuxArm64, linuxX64, macosArm64, macosX64, mingwX64]
+// Rendering settings:
+// - Signature version: 2
+// - Show manifest properties: true
+// - Show declarations: true
+
+// Library unique name: <tor-kmp:tor-ktor>
+final class io.github.androidpoet.tor.ktor/TorEngineConfig : io.ktor.client.engine/HttpClientEngineConfig { // io.github.androidpoet.tor.ktor/TorEngineConfig|null[0]
+    constructor <init>() // io.github.androidpoet.tor.ktor/TorEngineConfig.<init>|<init>(){}[0]
+
+    final var isolation // io.github.androidpoet.tor.ktor/TorEngineConfig.isolation|{}isolation[0]
+        final fun <get-isolation>(): kotlin/String? // io.github.androidpoet.tor.ktor/TorEngineConfig.isolation.<get-isolation>|<get-isolation>(){}[0]
+        final fun <set-isolation>(kotlin/String?) // io.github.androidpoet.tor.ktor/TorEngineConfig.isolation.<set-isolation>|<set-isolation>(kotlin.String?){}[0]
+    final var keepAliveMillis // io.github.androidpoet.tor.ktor/TorEngineConfig.keepAliveMillis|{}keepAliveMillis[0]
+        final fun <get-keepAliveMillis>(): kotlin/Long // io.github.androidpoet.tor.ktor/TorEngineConfig.keepAliveMillis.<get-keepAliveMillis>|<get-keepAliveMillis>(){}[0]
+        final fun <set-keepAliveMillis>(kotlin/Long) // io.github.androidpoet.tor.ktor/TorEngineConfig.keepAliveMillis.<set-keepAliveMillis>|<set-keepAliveMillis>(kotlin.Long){}[0]
+    final var maxIdlePerHost // io.github.androidpoet.tor.ktor/TorEngineConfig.maxIdlePerHost|{}maxIdlePerHost[0]
+        final fun <get-maxIdlePerHost>(): kotlin/Int // io.github.androidpoet.tor.ktor/TorEngineConfig.maxIdlePerHost.<get-maxIdlePerHost>|<get-maxIdlePerHost>(){}[0]
+        final fun <set-maxIdlePerHost>(kotlin/Int) // io.github.androidpoet.tor.ktor/TorEngineConfig.maxIdlePerHost.<set-maxIdlePerHost>|<set-maxIdlePerHost>(kotlin.Int){}[0]
+    final var tor // io.github.androidpoet.tor.ktor/TorEngineConfig.tor|{}tor[0]
+        final fun <get-tor>(): io.github.androidpoet.tor/Tor // io.github.androidpoet.tor.ktor/TorEngineConfig.tor.<get-tor>|<get-tor>(){}[0]
+        final fun <set-tor>(io.github.androidpoet.tor/Tor) // io.github.androidpoet.tor.ktor/TorEngineConfig.tor.<set-tor>|<set-tor>(io.github.androidpoet.tor.Tor){}[0]
+}
+
+final object io.github.androidpoet.tor.ktor/TorEngine : io.ktor.client.engine/HttpClientEngineFactory<io.github.androidpoet.tor.ktor/TorEngineConfig> { // io.github.androidpoet.tor.ktor/TorEngine|null[0]
+    final fun create(kotlin/Function1<io.github.androidpoet.tor.ktor/TorEngineConfig, kotlin/Unit>): io.ktor.client.engine/HttpClientEngine // io.github.androidpoet.tor.ktor/TorEngine.create|create(kotlin.Function1<io.github.androidpoet.tor.ktor.TorEngineConfig,kotlin.Unit>){}[0]
+}

@@ -14,19 +14,18 @@ public sealed interface TorState {
      * Connecting to the Tor network.
      *
      * @property progress rough completion from 0.0 to 1.0.
-     * @property blockedReason why progress has stalled (for example, the network is
-     * unreachable), or null while it is moving.
+     * @property blockage why progress has stalled, or null while it is moving.
      */
     public class Bootstrapping(
         public val progress: Float,
-        public val blockedReason: String?,
+        public val blockage: Blockage?,
     ) : TorState {
         override fun equals(other: Any?): Boolean =
-            other is Bootstrapping && other.progress == progress && other.blockedReason == blockedReason
+            other is Bootstrapping && other.progress == progress && other.blockage == blockage
 
-        override fun hashCode(): Int = 31 * progress.hashCode() + blockedReason.hashCode()
+        override fun hashCode(): Int = 31 * progress.hashCode() + blockage.hashCode()
 
-        override fun toString(): String = "Bootstrapping(progress=$progress, blockedReason=$blockedReason)"
+        override fun toString(): String = "Bootstrapping(progress=$progress, blockage=$blockage)"
     }
 
     /** Connected; streams and the SOCKS proxy carry traffic. */

@@ -28,14 +28,16 @@ No Orbot, no bundled <code>tor</code> process, no control port.
 ## Install
 
 ```kotlin
-implementation("io.github.androidpoet:tor:0.1.0")
+implementation("io.github.androidpoet:tor:0.1.0")          // the client: streams, TLS, SOCKS
+implementation("io.github.androidpoet:tor-ktor:0.1.0")     // optional: a Ktor engine, no proxy
+implementation("io.github.androidpoet:tor-okhttp:0.1.0")   // optional: OkHttp on Tor sockets (Android, JVM)
 ```
 
 The native Tor client is inside the artifact for every platform; there is nothing else to add.
 
 ## Usage
 
-One client per app, two ways to send traffic:
+One client per app, three ways to send traffic:
 
 ```kotlin
 val tor = Tor(TorConfig(dataDirectory = "$appFilesDir/tor"))
@@ -46,9 +48,16 @@ tor.connect("example.com", 80).use { stream ->
     val count = stream.read(buffer)   // -1 when the remote side closes
 }
 
-// 2. A SOCKS5 proxy, for clients that only speak proxies (OkHttp, Ktor, WebView).
+// 2. The same stream with TLS already done: certificate checked against Mozilla's roots.
+tor.connectTls("example.com", 443).use { stream -> /* plaintext in, TLS over Tor out */ }
+
+// 3. A SOCKS5 proxy, for clients that only speak proxies (WebViews).
 val proxy = tor.startSocksProxy()     // SocksProxy(host = "127.0.0.1", port = 41823)
 ```
+
+For HTTP, skip the hand-written requests: [`tor-ktor`](#http-without-a-proxy) gives Ktor a
+Tor engine and [`tor-okhttp`](#http-without-a-proxy) puts OkHttp on Tor sockets. Neither
+opens a port.
 
 Watch it connect:
 
@@ -56,11 +65,23 @@ Watch it connect:
 tor.state.collect { state ->
     when (state) {
         TorState.Idle -> {}
-        is TorState.Bootstrapping -> showProgress(state.progress, state.blockedReason)
+        is TorState.Bootstrapping -> showProgress(state.progress, state.blockage)
         TorState.Ready -> showConnected()
         is TorState.Failed -> showError(state.error.message)
         TorState.Closed -> {}
     }
+}
+```
+
+When bootstrapping stalls, `Bootstrapping.blockage` says why, as a category you can branch
+on plus Arti's own words:
+
+```kotlin
+when (blockage.kind) {
+    BlockageKind.OFFLINE -> "No internet connection"
+    BlockageKind.FILTERING -> "This network seems to block Tor"
+    BlockageKind.CLOCK_SKEWED -> "Check the device clock"
+    else -> blockage.message
 }
 ```
 
@@ -69,14 +90,14 @@ so no DNS query leaves the device.
 
 ## Platforms
 
-| Platform | Targets | How it's loaded | Verified |
+| Platform | Targets | How it's loaded | Live tests run on |
 | --- | --- | --- | --- |
-| Android (API 24+) | `arm64-v8a` `armeabi-v7a` `x86_64` `x86` | `libtorkmp.so` in the AAR | PLATFORM_ANDROID |
-| iOS | `iosArm64` `iosSimulatorArm64` `iosX64` | static, linked into your framework | PLATFORM_IOS |
-| macOS | `macosArm64` `macosX64` | static | PLATFORM_MACOS |
-| JVM / Compose Desktop | macOS, Linux, Windows (x64 + arm64 where available) | bundled in the jar, extracted at runtime | PLATFORM_JVM |
-| Linux | `linuxX64` `linuxArm64` (glibc 2.17+) | static | PLATFORM_LINUX |
-| Windows | `mingwX64` | static | PLATFORM_WINDOWS |
+| Android (API 24+) | `arm64-v8a` `armeabi-v7a` `x86_64` `x86` | `libtorkmp.so` in the AAR | API 36 emulator (`x86_64`) |
+| iOS | `iosArm64` `iosSimulatorArm64` `iosX64` | static, linked into your framework | iPhone 17 simulator |
+| macOS | `macosArm64` `macosX64` | static | Apple silicon |
+| JVM / Compose Desktop | macOS, Linux, Windows (x64 + arm64 where available) | bundled in the jar, extracted at runtime | macOS (Apple silicon) |
+| Linux | `linuxX64` `linuxArm64` (glibc 2.17+) | static | Debian 12 containers, both architectures |
+| Windows | `mingwX64` | static | builds and links; not yet executed |
 
 Adds about **5–9 MB per architecture** to your app (stripped).
 
@@ -94,28 +115,114 @@ proxy.url(isolation = "tab-1")   // "socks5h://tab-1:x@127.0.0.1:41823", same ru
 tor.newIdentity()   // every later stream uses fresh circuits; open streams are untouched
 ```
 
+`newIdentity()` is about circuits only. It does not clear cookies, caches, sessions or
+anything else your app or a WebView remembers; do that yourself at the same time. Unlike
+the C Tor daemon's `NEWNYM`, it is not rate-limited.
+
 ## Streams or SOCKS?
 
 | | `tor.connect()` | `tor.startSocksProxy()` |
 | --- | --- | --- |
 | Local port | none | `127.0.0.1:<port>` |
 | Other apps on the device can use it | no | **yes**, anything can connect to a loopback port |
-| Works with | your own networking code | any proxy-aware client |
+| Works with | your code, Ktor (`tor-ktor`), OkHttp (`tor-okhttp`) | WebViews, HTTP stacks you can't change |
 | Isolation | `isolation =` argument | SOCKS username/password |
 
 Prefer streams when you own the networking code. Use the proxy for WebViews and HTTP
-stacks you can't change.
+stacks you can't change. `tor.socksIpLiteralConnections` counts SOCKS requests that
+arrived with an IP address instead of a hostname, which is how a leaking client shows up.
+
+## HTTP without a proxy
+
+**Ktor**, any target:
+
+```kotlin
+val client = HttpClient(TorEngine) {
+    engine {
+        tor = myTor
+        isolation = "account-1"       // optional: a circuit group for this client
+    }
+}
+client.get("https://check.torproject.org/api/ip")   // {"IsTor":true,...}
+client.get("http://2gzyxa5ihm7nsggfxnu52rck2vv4rvmdlkiu3zzui5du4xyclen53wid.onion/")
+```
+
+HTTP/1.1 with keep-alive, request bodies, `HttpTimeout`'s connect timeout and every Ktor
+plugin that works on top of an engine. TLS is done inside the Tor client against Mozilla's
+root store, so there is no platform trust store or pinning here; use `tor-okhttp` if you
+need those. WebSockets are not supported yet.
+
+**OkHttp**, Android and JVM:
+
+```kotlin
+val client = OkHttpClient.Builder().tor(myTor, isolation = "account-1").build()
+```
+
+OkHttp keeps doing TLS itself (platform trust store, `CertificatePinner`, HTTP/2 via ALPN);
+only the TCP layer is a Tor stream. `TorDns` hands hostnames to Tor unresolved, so `.onion`
+hosts work and no DNS query leaves the device. The same client also serves Ktor's `OkHttp`
+engine through `preconfigured`.
+
+In both, the connect timeout (`connectTimeout` / `HttpTimeout.connectTimeoutMillis`) bounds
+opening the Tor stream, like a TCP connect. It does not cover Tor's first bootstrap, which
+runs before it; call `tor.bootstrap()` yourself if you want to bound or show that.
+
+## Which client, which path
+
+Some clients accept a SOCKS setting and then **resolve DNS locally or connect directly
+anyway**, which leaks your traffic outside Tor without any error. This table is
+checked against each client's source code:
+
+| Client | Use | DNS through Tor | Per-client isolation |
+| --- | --- | --- | --- |
+| Your own code | `tor.connect()` | ✅ always | ✅ `isolation =` |
+| Ktor, any engine-free target | `TorEngine` (`tor-ktor`) | ✅ always | ✅ `isolation` per client |
+| OkHttp (+ Ktor `OkHttp` engine) | `.tor(tor)` (`tor-okhttp`) | ✅ always | ✅ `isolation` per client |
+| OkHttp (+ Ktor `OkHttp` engine) | SOCKS proxy | ✅ OkHttp sends the hostname | ❌ (global `Authenticator` only) |
+| Android `HttpURLConnection` (+ Ktor `Android` engine) | SOCKS proxy | ✅ | ❌ |
+| Ktor `Curl` engine (Linux, Windows, macOS) | SOCKS proxy | ✅ rewritten to `socks5h://` | ✅ credentials in the proxy URL |
+| Ktor `Darwin` engine | SOCKS proxy | ⚠️ unverified | ❌ credentials are dropped |
+| Android WebView | SOCKS proxy (required) | ✅ Chromium resolves on the proxy | ❌ one proxy per process |
+| WKWebView (iOS 17 / macOS 14) | SOCKS proxy (required) | ⚠️ unverified | ✅ one data store per tab |
+| Desktop `HttpURLConnection` (OpenJDK) | ❌ **don't** | ❌ resolves locally, leaks DNS | — |
+| `java.net.http.HttpClient`, Ktor `Java` engine | ❌ **don't** | ignores SOCKS and connects **directly** | — |
+| Ktor `CIO` engine | ❌ **don't** | ignores SOCKS and connects **directly** | — |
+
+So yes, keep the proxy: WebViews can't use Tor any other way. But prefer streams
+(`tor.connect()`, `tor-ktor`, `tor-okhttp`) wherever you own the networking code.
 
 <details>
 <summary><b>OkHttp</b></summary>
 
 ```kotlin
-val proxy = tor.startSocksProxy()
+val client = OkHttpClient.Builder().tor(tor).build()          // tor-okhttp: no port, no proxy
+
+val proxy = tor.startSocksProxy()                               // or, over SOCKS:
 val client = OkHttpClient.Builder()
     .proxy(Proxy(Proxy.Type.SOCKS, InetSocketAddress(proxy.host, proxy.port)))
     .build()
 ```
-OkHttp hands the hostname to the proxy, so DNS also goes through Tor.
+
+Over SOCKS, OkHttp hands the hostname to the proxy (it never resolves it), so DNS also goes
+through Tor; what you lose is per-client isolation.
+</details>
+
+<details>
+<summary><b>Ktor</b></summary>
+
+```kotlin
+val client = HttpClient(TorEngine) { engine { tor = myTor } }   // tor-ktor: any target, no proxy
+
+val proxy = tor.startSocksProxy()                                 // or, over SOCKS:
+val client = HttpClient(OkHttp) {          // Android / JVM. On Linux & Windows: Curl
+    engine { this.proxy = ProxyBuilder.socks(proxy.host, proxy.port) }
+}
+```
+
+Over SOCKS, use the `OkHttp` or `Android` engine on Android and the JVM, and `Curl` on
+desktop native. **Never `CIO` or `Java`:** both ignore a SOCKS proxy and connect straight
+to the server. `Darwin` works, but its DNS behaviour is unverified and it can't isolate
+clients.
 </details>
 
 <details>
@@ -131,16 +238,22 @@ ProxyController.getInstance().setProxyOverride(
 ```
 
 Requires `androidx.webkit` and `WebViewFeature.isFeatureSupported(WebViewFeature.PROXY_OVERRIDE)`.
+The override covers every WebView in the process, and Chromium can't send SOCKS
+credentials, so all WebViews share one isolation group.
 </details>
 
 <details>
-<summary><b>Plain JVM (<code>java.net</code>)</b></summary>
+<summary><b>WKWebView (iOS 17+ / macOS 14+)</b></summary>
 
-```kotlin
-val proxy = tor.startSocksProxy()
-val connection = URI("https://check.torproject.org/api/ip").toURL()
-    .openConnection(Proxy(Proxy.Type.SOCKS, InetSocketAddress(proxy.host, proxy.port)))
+```swift
+let store = WKWebsiteDataStore(forIdentifier: tabId)   // a fresh store per tab
+var socks = ProxyConfiguration(socksv5Proxy: .hostPort(host: "127.0.0.1", port: .init(integerLiteral: port)))
+socks.applyCredential(username: "tab-1", password: "x")  // isolation key
+store.proxyConfigurations = [socks]
 ```
+
+Set the proxy on a store before its first load; changing it on a store already in use
+does not apply to pooled connections.
 </details>
 
 ## Lifecycle
@@ -152,10 +265,18 @@ val connection = URI("https://check.torproject.org/api/ip").toURL()
   `bootstrap()` stops Arti's bootstrap, and a cancelled `read()`/`write()` closes its stream.
 - `close()` cancels any bootstrap and stops the proxy. Open `TorStream`s keep working until
   you close them.
+- **iOS** suspends your process in the background and its connections drop. Keep the `Tor`
+  instance; the next `connect()` after resuming rebuilds circuits from the cached directory.
+  Wrap long transfers in a background task.
+- **Android** may kill a backgrounded process. If Tor must stay up while the app is not on
+  screen (a messenger, a long download), run it inside a foreground service; otherwise just
+  create `Tor` again on the next launch, which is fast with a warm data directory.
 
 ## How it works
 
 ```
+ tor-ktor (TorEngine)   tor-okhttp (TorSocketFactory)   your code
+     └──────────────────────┬──────────────────────────────┘
  Kotlin API (Tor, TorStream, SocksProxy)
      │  JNI (JVM, Android)  ·  cinterop (iOS, macOS, Linux, Windows)
      ▼
@@ -177,9 +298,9 @@ rustup target add aarch64-apple-darwin x86_64-apple-darwin aarch64-apple-ios aar
   x86_64-apple-ios aarch64-linux-android armv7-linux-androideabi x86_64-linux-android \
   i686-linux-android x86_64-unknown-linux-gnu aarch64-unknown-linux-gnu x86_64-pc-windows-gnu
 
-./gradlew :tor:jvmTest :tor:macosArm64Test           # desktop
-./gradlew :tor:iosSimulatorArm64Test                 # iOS simulator (-Ptor.simulator="iPhone 17")
-./gradlew :tor:connectedAndroidTest                  # Android device or emulator
+./gradlew jvmTest macosArm64Test                     # desktop, all modules
+./gradlew iosSimulatorArm64Test                      # iOS simulator (-Ptor.simulator="iPhone 17")
+./gradlew connectedAndroidTest                       # Android device or emulator
 ./gradlew spotlessCheck detekt apiCheck              # gates
 ```
 

@@ -120,12 +120,58 @@ pub extern "system" fn Java_io_github_androidpoet_tor_internal_TorBridge_blocked
 }
 
 #[no_mangle]
+pub extern "system" fn Java_io_github_androidpoet_tor_internal_TorBridge_blockedKind(
+    _env: JNIEnv,
+    _class: JClass,
+    tor: jlong,
+) -> jint {
+    unsafe { torkmp_blocked_kind(tor as *const TorKmp) }
+}
+
+#[no_mangle]
 pub extern "system" fn Java_io_github_androidpoet_tor_internal_TorBridge_newIdentity(
     _env: JNIEnv,
     _class: JClass,
     tor: jlong,
 ) {
     unsafe { torkmp_new_identity(tor as *const TorKmp) }
+}
+
+fn connect_common(
+    env: &mut JNIEnv,
+    tor: jlong,
+    host: JString,
+    port: jint,
+    isolation: JString,
+    tls: bool,
+) -> jlong {
+    let Some(host) = c_string(env, &host) else {
+        return 0;
+    };
+    let isolation = if isolation.is_null() {
+        None
+    } else {
+        match c_string(env, &isolation) {
+            Some(key) => Some(key),
+            None => return 0,
+        }
+    };
+    let Ok(port) = u16::try_from(port) else {
+        throw(env, "port out of range");
+        return 0;
+    };
+    let isolation_ptr = isolation.as_ref().map_or(ptr::null(), |key| key.as_ptr());
+    let stream = unsafe {
+        if tls {
+            torkmp_connect_tls(tor as *const TorKmp, host.as_ptr(), port, isolation_ptr)
+        } else {
+            torkmp_connect(tor as *const TorKmp, host.as_ptr(), port, isolation_ptr)
+        }
+    };
+    if stream.is_null() {
+        throw_last_error(env);
+    }
+    stream as jlong
 }
 
 #[no_mangle]
@@ -137,33 +183,19 @@ pub extern "system" fn Java_io_github_androidpoet_tor_internal_TorBridge_connect
     port: jint,
     isolation: JString,
 ) -> jlong {
-    let Some(host) = c_string(&mut env, &host) else {
-        return 0;
-    };
-    let isolation = if isolation.is_null() {
-        None
-    } else {
-        match c_string(&mut env, &isolation) {
-            Some(key) => Some(key),
-            None => return 0,
-        }
-    };
-    let Ok(port) = u16::try_from(port) else {
-        throw(&mut env, "port out of range");
-        return 0;
-    };
-    let stream = unsafe {
-        torkmp_connect(
-            tor as *const TorKmp,
-            host.as_ptr(),
-            port,
-            isolation.as_ref().map_or(ptr::null(), |key| key.as_ptr()),
-        )
-    };
-    if stream.is_null() {
-        throw_last_error(&mut env);
-    }
-    stream as jlong
+    connect_common(&mut env, tor, host, port, isolation, false)
+}
+
+#[no_mangle]
+pub extern "system" fn Java_io_github_androidpoet_tor_internal_TorBridge_connectTls(
+    mut env: JNIEnv,
+    _class: JClass,
+    tor: jlong,
+    host: JString,
+    port: jint,
+    isolation: JString,
+) -> jlong {
+    connect_common(&mut env, tor, host, port, isolation, true)
 }
 
 /// Returns the byte count, or -1 at end of stream (Java convention).
@@ -252,6 +284,15 @@ pub extern "system" fn Java_io_github_androidpoet_tor_internal_TorBridge_startSo
         throw_last_error(&mut env);
     }
     bound
+}
+
+#[no_mangle]
+pub extern "system" fn Java_io_github_androidpoet_tor_internal_TorBridge_socksIpConnects(
+    _env: JNIEnv,
+    _class: JClass,
+    tor: jlong,
+) -> jlong {
+    unsafe { torkmp_socks_ip_connects(tor as *const TorKmp) as jlong }
 }
 
 #[no_mangle]

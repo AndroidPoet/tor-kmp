@@ -1,17 +1,33 @@
 // Klib ABI Dump
-// Targets: [macosArm64]
+// Targets: [iosArm64, iosSimulatorArm64, iosX64, linuxArm64, linuxX64, macosArm64, macosX64, mingwX64]
 // Rendering settings:
 // - Signature version: 2
 // - Show manifest properties: true
 // - Show declarations: true
 
 // Library unique name: <tor-kmp:tor>
+final enum class io.github.androidpoet.tor/BlockageKind : kotlin/Enum<io.github.androidpoet.tor/BlockageKind> { // io.github.androidpoet.tor/BlockageKind|null[0]
+    enum entry CANT_BOOTSTRAP // io.github.androidpoet.tor/BlockageKind.CANT_BOOTSTRAP|null[0]
+    enum entry CANT_REACH_TOR // io.github.androidpoet.tor/BlockageKind.CANT_REACH_TOR|null[0]
+    enum entry CLOCK_SKEWED // io.github.androidpoet.tor/BlockageKind.CLOCK_SKEWED|null[0]
+    enum entry DISABLED // io.github.androidpoet.tor/BlockageKind.DISABLED|null[0]
+    enum entry FILTERING // io.github.androidpoet.tor/BlockageKind.FILTERING|null[0]
+    enum entry OFFLINE // io.github.androidpoet.tor/BlockageKind.OFFLINE|null[0]
+    enum entry OTHER // io.github.androidpoet.tor/BlockageKind.OTHER|null[0]
+
+    final val entries // io.github.androidpoet.tor/BlockageKind.entries|#static{}entries[0]
+        final fun <get-entries>(): kotlin.enums/EnumEntries<io.github.androidpoet.tor/BlockageKind> // io.github.androidpoet.tor/BlockageKind.entries.<get-entries>|<get-entries>#static(){}[0]
+
+    final fun valueOf(kotlin/String): io.github.androidpoet.tor/BlockageKind // io.github.androidpoet.tor/BlockageKind.valueOf|valueOf#static(kotlin.String){}[0]
+    final fun values(): kotlin/Array<io.github.androidpoet.tor/BlockageKind> // io.github.androidpoet.tor/BlockageKind.values|values#static(){}[0]
+}
+
 sealed interface io.github.androidpoet.tor/TorState { // io.github.androidpoet.tor/TorState|null[0]
     final class Bootstrapping : io.github.androidpoet.tor/TorState { // io.github.androidpoet.tor/TorState.Bootstrapping|null[0]
-        constructor <init>(kotlin/Float, kotlin/String?) // io.github.androidpoet.tor/TorState.Bootstrapping.<init>|<init>(kotlin.Float;kotlin.String?){}[0]
+        constructor <init>(kotlin/Float, io.github.androidpoet.tor/Blockage?) // io.github.androidpoet.tor/TorState.Bootstrapping.<init>|<init>(kotlin.Float;io.github.androidpoet.tor.Blockage?){}[0]
 
-        final val blockedReason // io.github.androidpoet.tor/TorState.Bootstrapping.blockedReason|{}blockedReason[0]
-            final fun <get-blockedReason>(): kotlin/String? // io.github.androidpoet.tor/TorState.Bootstrapping.blockedReason.<get-blockedReason>|<get-blockedReason>(){}[0]
+        final val blockage // io.github.androidpoet.tor/TorState.Bootstrapping.blockage|{}blockage[0]
+            final fun <get-blockage>(): io.github.androidpoet.tor/Blockage? // io.github.androidpoet.tor/TorState.Bootstrapping.blockage.<get-blockage>|<get-blockage>(){}[0]
         final val progress // io.github.androidpoet.tor/TorState.Bootstrapping.progress|{}progress[0]
             final fun <get-progress>(): kotlin/Float // io.github.androidpoet.tor/TorState.Bootstrapping.progress.<get-progress>|<get-progress>(){}[0]
 
@@ -50,6 +66,19 @@ sealed interface io.github.androidpoet.tor/TorState { // io.github.androidpoet.t
     }
 }
 
+final class io.github.androidpoet.tor/Blockage { // io.github.androidpoet.tor/Blockage|null[0]
+    constructor <init>(io.github.androidpoet.tor/BlockageKind, kotlin/String) // io.github.androidpoet.tor/Blockage.<init>|<init>(io.github.androidpoet.tor.BlockageKind;kotlin.String){}[0]
+
+    final val kind // io.github.androidpoet.tor/Blockage.kind|{}kind[0]
+        final fun <get-kind>(): io.github.androidpoet.tor/BlockageKind // io.github.androidpoet.tor/Blockage.kind.<get-kind>|<get-kind>(){}[0]
+    final val message // io.github.androidpoet.tor/Blockage.message|{}message[0]
+        final fun <get-message>(): kotlin/String // io.github.androidpoet.tor/Blockage.message.<get-message>|<get-message>(){}[0]
+
+    final fun equals(kotlin/Any?): kotlin/Boolean // io.github.androidpoet.tor/Blockage.equals|equals(kotlin.Any?){}[0]
+    final fun hashCode(): kotlin/Int // io.github.androidpoet.tor/Blockage.hashCode|hashCode(){}[0]
+    final fun toString(): kotlin/String // io.github.androidpoet.tor/Blockage.toString|toString(){}[0]
+}
+
 final class io.github.androidpoet.tor/SocksProxy { // io.github.androidpoet.tor/SocksProxy|null[0]
     constructor <init>(kotlin/String, kotlin/Int) // io.github.androidpoet.tor/SocksProxy.<init>|<init>(kotlin.String;kotlin.Int){}[0]
 
@@ -67,6 +96,8 @@ final class io.github.androidpoet.tor/SocksProxy { // io.github.androidpoet.tor/
 final class io.github.androidpoet.tor/Tor : kotlin/AutoCloseable { // io.github.androidpoet.tor/Tor|null[0]
     constructor <init>(io.github.androidpoet.tor/TorConfig) // io.github.androidpoet.tor/Tor.<init>|<init>(io.github.androidpoet.tor.TorConfig){}[0]
 
+    final val socksIpLiteralConnections // io.github.androidpoet.tor/Tor.socksIpLiteralConnections|{}socksIpLiteralConnections[0]
+        final fun <get-socksIpLiteralConnections>(): kotlin/Long // io.github.androidpoet.tor/Tor.socksIpLiteralConnections.<get-socksIpLiteralConnections>|<get-socksIpLiteralConnections>(){}[0]
     final val state // io.github.androidpoet.tor/Tor.state|{}state[0]
         final fun <get-state>(): kotlinx.coroutines.flow/StateFlow<io.github.androidpoet.tor/TorState> // io.github.androidpoet.tor/Tor.state.<get-state>|<get-state>(){}[0]
 
@@ -75,6 +106,7 @@ final class io.github.androidpoet.tor/Tor : kotlin/AutoCloseable { // io.github.
     final fun stopSocksProxy() // io.github.androidpoet.tor/Tor.stopSocksProxy|stopSocksProxy(){}[0]
     final suspend fun bootstrap() // io.github.androidpoet.tor/Tor.bootstrap|bootstrap(){}[0]
     final suspend fun connect(kotlin/String, kotlin/Int, kotlin/String? = ...): io.github.androidpoet.tor/TorStream // io.github.androidpoet.tor/Tor.connect|connect(kotlin.String;kotlin.Int;kotlin.String?){}[0]
+    final suspend fun connectTls(kotlin/String, kotlin/Int = ..., kotlin/String? = ...): io.github.androidpoet.tor/TorStream // io.github.androidpoet.tor/Tor.connectTls|connectTls(kotlin.String;kotlin.Int;kotlin.String?){}[0]
     final suspend fun startSocksProxy(kotlin/Int = ...): io.github.androidpoet.tor/SocksProxy // io.github.androidpoet.tor/Tor.startSocksProxy|startSocksProxy(kotlin.Int){}[0]
 }
 

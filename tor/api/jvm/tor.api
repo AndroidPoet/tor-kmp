@@ -1,0 +1,111 @@
+public final class io/github/androidpoet/tor/Blockage {
+	public fun <init> (Lio/github/androidpoet/tor/BlockageKind;Ljava/lang/String;)V
+	public fun equals (Ljava/lang/Object;)Z
+	public final fun getKind ()Lio/github/androidpoet/tor/BlockageKind;
+	public final fun getMessage ()Ljava/lang/String;
+	public fun hashCode ()I
+	public fun toString ()Ljava/lang/String;
+}
+
+public final class io/github/androidpoet/tor/BlockageKind : java/lang/Enum {
+	public static final field CANT_BOOTSTRAP Lio/github/androidpoet/tor/BlockageKind;
+	public static final field CANT_REACH_TOR Lio/github/androidpoet/tor/BlockageKind;
+	public static final field CLOCK_SKEWED Lio/github/androidpoet/tor/BlockageKind;
+	public static final field DISABLED Lio/github/androidpoet/tor/BlockageKind;
+	public static final field FILTERING Lio/github/androidpoet/tor/BlockageKind;
+	public static final field OFFLINE Lio/github/androidpoet/tor/BlockageKind;
+	public static final field OTHER Lio/github/androidpoet/tor/BlockageKind;
+	public static fun getEntries ()Lkotlin/enums/EnumEntries;
+	public static fun valueOf (Ljava/lang/String;)Lio/github/androidpoet/tor/BlockageKind;
+	public static fun values ()[Lio/github/androidpoet/tor/BlockageKind;
+}
+
+public final class io/github/androidpoet/tor/SocksProxy {
+	public fun <init> (Ljava/lang/String;I)V
+	public fun equals (Ljava/lang/Object;)Z
+	public final fun getHost ()Ljava/lang/String;
+	public final fun getPort ()I
+	public fun hashCode ()I
+	public fun toString ()Ljava/lang/String;
+	public final fun url (Ljava/lang/String;)Ljava/lang/String;
+	public static synthetic fun url$default (Lio/github/androidpoet/tor/SocksProxy;Ljava/lang/String;ILjava/lang/Object;)Ljava/lang/String;
+}
+
+public final class io/github/androidpoet/tor/Tor : java/lang/AutoCloseable {
+	public static final field HTTPS_PORT I
+	public static final field PROGRESS_INTERVAL_MS J
+	public fun <init> (Lio/github/androidpoet/tor/TorConfig;)V
+	public final fun bootstrap (Lkotlin/coroutines/Continuation;)Ljava/lang/Object;
+	public fun close ()V
+	public final fun connect (Ljava/lang/String;ILjava/lang/String;Lkotlin/coroutines/Continuation;)Ljava/lang/Object;
+	public static synthetic fun connect$default (Lio/github/androidpoet/tor/Tor;Ljava/lang/String;ILjava/lang/String;Lkotlin/coroutines/Continuation;ILjava/lang/Object;)Ljava/lang/Object;
+	public final fun connectTls (Ljava/lang/String;ILjava/lang/String;Lkotlin/coroutines/Continuation;)Ljava/lang/Object;
+	public static synthetic fun connectTls$default (Lio/github/androidpoet/tor/Tor;Ljava/lang/String;ILjava/lang/String;Lkotlin/coroutines/Continuation;ILjava/lang/Object;)Ljava/lang/Object;
+	public final fun getSocksIpLiteralConnections ()J
+	public final fun getState ()Lkotlinx/coroutines/flow/StateFlow;
+	public final fun newIdentity ()V
+	public final fun startSocksProxy (ILkotlin/coroutines/Continuation;)Ljava/lang/Object;
+	public static synthetic fun startSocksProxy$default (Lio/github/androidpoet/tor/Tor;ILkotlin/coroutines/Continuation;ILjava/lang/Object;)Ljava/lang/Object;
+	public final fun stopSocksProxy ()V
+}
+
+public final class io/github/androidpoet/tor/TorConfig {
+	public fun <init> (Ljava/lang/String;)V
+	public final fun getDataDirectory ()Ljava/lang/String;
+}
+
+public final class io/github/androidpoet/tor/TorException : java/lang/Exception {
+	public fun <init> (Ljava/lang/String;)V
+	public fun <init> (Ljava/lang/String;Ljava/lang/Throwable;)V
+	public synthetic fun <init> (Ljava/lang/String;Ljava/lang/Throwable;ILkotlin/jvm/internal/DefaultConstructorMarker;)V
+}
+
+public abstract interface class io/github/androidpoet/tor/TorState {
+}
+
+public final class io/github/androidpoet/tor/TorState$Bootstrapping : io/github/androidpoet/tor/TorState {
+	public fun <init> (FLio/github/androidpoet/tor/Blockage;)V
+	public fun equals (Ljava/lang/Object;)Z
+	public final fun getBlockage ()Lio/github/androidpoet/tor/Blockage;
+	public final fun getProgress ()F
+	public fun hashCode ()I
+	public fun toString ()Ljava/lang/String;
+}
+
+public final class io/github/androidpoet/tor/TorState$Closed : io/github/androidpoet/tor/TorState {
+	public static final field INSTANCE Lio/github/androidpoet/tor/TorState$Closed;
+	public fun equals (Ljava/lang/Object;)Z
+	public fun hashCode ()I
+	public fun toString ()Ljava/lang/String;
+}
+
+public final class io/github/androidpoet/tor/TorState$Failed : io/github/androidpoet/tor/TorState {
+	public fun <init> (Lio/github/androidpoet/tor/TorException;)V
+	public fun equals (Ljava/lang/Object;)Z
+	public final fun getError ()Lio/github/androidpoet/tor/TorException;
+	public fun hashCode ()I
+	public fun toString ()Ljava/lang/String;
+}
+
+public final class io/github/androidpoet/tor/TorState$Idle : io/github/androidpoet/tor/TorState {
+	public static final field INSTANCE Lio/github/androidpoet/tor/TorState$Idle;
+	public fun equals (Ljava/lang/Object;)Z
+	public fun hashCode ()I
+	public fun toString ()Ljava/lang/String;
+}
+
+public final class io/github/androidpoet/tor/TorState$Ready : io/github/androidpoet/tor/TorState {
+	public static final field INSTANCE Lio/github/androidpoet/tor/TorState$Ready;
+	public fun equals (Ljava/lang/Object;)Z
+	public fun hashCode ()I
+	public fun toString ()Ljava/lang/String;
+}
+
+public final class io/github/androidpoet/tor/TorStream : java/lang/AutoCloseable {
+	public fun close ()V
+	public final fun read ([BIILkotlin/coroutines/Continuation;)Ljava/lang/Object;
+	public static synthetic fun read$default (Lio/github/androidpoet/tor/TorStream;[BIILkotlin/coroutines/Continuation;ILjava/lang/Object;)Ljava/lang/Object;
+	public final fun write ([BIILkotlin/coroutines/Continuation;)Ljava/lang/Object;
+	public static synthetic fun write$default (Lio/github/androidpoet/tor/TorStream;[BIILkotlin/coroutines/Continuation;ILjava/lang/Object;)Ljava/lang/Object;
+}
+

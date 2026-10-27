@@ -19,9 +19,18 @@ internal actual object TorBridge {
 
     @JvmStatic actual external fun blockedReason(tor: Long): String?
 
+    @JvmStatic actual external fun blockedKind(tor: Long): Int
+
     @JvmStatic actual external fun newIdentity(tor: Long)
 
     @JvmStatic actual external fun connect(
+        tor: Long,
+        host: String,
+        port: Int,
+        isolation: String?,
+    ): Long
+
+    @JvmStatic actual external fun connectTls(
         tor: Long,
         host: String,
         port: Int,
@@ -50,6 +59,8 @@ internal actual object TorBridge {
         tor: Long,
         port: Int,
     ): Int
+
+    @JvmStatic actual external fun socksIpConnects(tor: Long): Long
 
     @JvmStatic actual external fun stopSocks(tor: Long)
 

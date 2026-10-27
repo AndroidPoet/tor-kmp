@@ -3,14 +3,17 @@ package io.github.androidpoet.tor.internal
 import cnames.structs.TorKmp
 import cnames.structs.TorKmpStream
 import io.github.androidpoet.tor.TorException
+import io.github.androidpoet.tor.cinterop.torkmp_blocked_kind
 import io.github.androidpoet.tor.cinterop.torkmp_blocked_reason
 import io.github.androidpoet.tor.cinterop.torkmp_bootstrap
 import io.github.androidpoet.tor.cinterop.torkmp_cancel_bootstrap
 import io.github.androidpoet.tor.cinterop.torkmp_connect
+import io.github.androidpoet.tor.cinterop.torkmp_connect_tls
 import io.github.androidpoet.tor.cinterop.torkmp_create
 import io.github.androidpoet.tor.cinterop.torkmp_destroy
 import io.github.androidpoet.tor.cinterop.torkmp_last_error
 import io.github.androidpoet.tor.cinterop.torkmp_new_identity
+import io.github.androidpoet.tor.cinterop.torkmp_socks_ip_connects
 import io.github.androidpoet.tor.cinterop.torkmp_socks_start
 import io.github.androidpoet.tor.cinterop.torkmp_socks_stop
 import io.github.androidpoet.tor.cinterop.torkmp_status
@@ -60,6 +63,8 @@ internal actual object TorBridge {
 
     actual fun blockedReason(tor: Long): String? = torkmp_blocked_reason(tor.client)?.consume()
 
+    actual fun blockedKind(tor: Long): Int = torkmp_blocked_kind(tor.client)
+
     actual fun newIdentity(tor: Long) = torkmp_new_identity(tor.client)
 
     actual fun connect(
@@ -68,6 +73,13 @@ internal actual object TorBridge {
         port: Int,
         isolation: String?,
     ): Long = torkmp_connect(tor.client, host, port.convert(), isolation).orThrow().toLong()
+
+    actual fun connectTls(
+        tor: Long,
+        host: String,
+        port: Int,
+        isolation: String?,
+    ): Long = torkmp_connect_tls(tor.client, host, port.convert(), isolation).orThrow().toLong()
 
     actual fun read(
         stream: Long,
@@ -104,6 +116,8 @@ internal actual object TorBridge {
         tor: Long,
         port: Int,
     ): Int = torkmp_socks_start(tor.client, port.convert()).also { if (it < 0) throwLastError() }
+
+    actual fun socksIpConnects(tor: Long): Long = torkmp_socks_ip_connects(tor.client).toLong()
 
     actual fun stopSocks(tor: Long) = torkmp_socks_stop(tor.client)
 

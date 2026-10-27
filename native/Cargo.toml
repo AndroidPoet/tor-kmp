@@ -6,7 +6,8 @@ license = "MIT OR Apache-2.0"
 publish = false
 
 [lib]
-crate-type = ["staticlib", "cdylib", "rlib"]
+# No "rlib": with it in the list, LTO does not apply to the staticlib (104 MB vs 15 MB).
+crate-type = ["staticlib", "cdylib"]
 
 [dependencies]
 arti-client = { version = "=0.47.0", default-features = false, features = ["tokio", "rustls", "compression", "onion-service-client", "static-sqlite"] }
@@ -20,7 +21,10 @@ liblzma-sys = { version = "0.4", default-features = false, features = ["static"]
 # still uses it on iOS. Hold libc back until tor-memquota moves to sysinfo 0.39.
 libc = "=0.2.189"
 jni = { version = "0.21", optional = true }
-rustls = { version = "0.23", default-features = false, features = ["ring", "std"] }
+rustls = { version = "0.23", default-features = false, features = ["ring", "std", "tls12"] }
+# TLS over Tor streams for torkmp_connect_tls; same rustls Arti already links.
+futures-rustls = { version = "0.26", default-features = false, features = ["ring", "tls12"] }
+webpki-roots = "1"
 
 [features]
 # JNI exports for the JVM and Android builds; Kotlin/Native calls the C ABI directly.

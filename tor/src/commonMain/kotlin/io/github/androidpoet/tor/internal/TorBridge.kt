@@ -22,9 +22,19 @@ internal expect object TorBridge {
 
     fun blockedReason(tor: Long): String?
 
+    /** 0 = not blocked; see BlockageKind.fromCode for the others. */
+    fun blockedKind(tor: Long): Int
+
     fun newIdentity(tor: Long)
 
     fun connect(
+        tor: Long,
+        host: String,
+        port: Int,
+        isolation: String?,
+    ): Long
+
+    fun connectTls(
         tor: Long,
         host: String,
         port: Int,
@@ -54,6 +64,8 @@ internal expect object TorBridge {
         tor: Long,
         port: Int,
     ): Int
+
+    fun socksIpConnects(tor: Long): Long
 
     fun stopSocks(tor: Long)
 

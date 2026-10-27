@@ -8,6 +8,7 @@
 
 use std::io;
 use std::net::{Ipv4Addr, Ipv6Addr};
+use std::sync::atomic::Ordering;
 use std::sync::Arc;
 
 use tokio::io::{AsyncReadExt, AsyncWriteExt};
@@ -81,6 +82,9 @@ async fn serve(mut client: TcpStream, circuits: &Circuits) -> io::Result<()> {
     let Some(host) = read_host(&mut client, address_type).await? else {
         return reply(&mut client, REPLY_ADDRESS_UNSUPPORTED).await;
     };
+    if address_type != ATYP_DOMAIN {
+        circuits.socks_ip_connects.fetch_add(1, Ordering::Relaxed);
+    }
     let port = client.read_u16().await?;
     if command != CMD_CONNECT {
         return reply(&mut client, REPLY_COMMAND_UNSUPPORTED).await;

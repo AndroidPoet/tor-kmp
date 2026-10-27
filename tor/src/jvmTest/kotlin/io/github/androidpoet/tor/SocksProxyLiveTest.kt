@@ -10,7 +10,13 @@ import kotlin.test.Test
 import kotlin.test.assertTrue
 import kotlin.time.Duration.Companion.minutes
 
-/** Live: a stock JDK HTTPS client through the SOCKS proxy is seen by the Tor Project as Tor. */
+/**
+ * Live: a stock JDK HTTPS client through the SOCKS proxy is seen by the Tor Project as Tor.
+ *
+ * This proves the traffic exits through Tor, not that DNS stays inside it: desktop
+ * `HttpURLConnection` resolves hostnames locally before talking to the proxy, so it is
+ * not a recommended client (see the README).
+ */
 class SocksProxyLiveTest {
     @Test
     fun test_startSocksProxy_httpsThroughProxy_reportsIsTor() =

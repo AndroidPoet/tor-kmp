@@ -4866,12 +4866,14 @@ version = "0.1.0"
 dependencies = [
  "arti-client",
  "futures",
+ "futures-rustls",
  "jni",
  "libc",
  "liblzma-sys",
  "rustls",
  "tokio",
  "tor-rtcompat",
+ "webpki-roots",
 ]
 
 [[package]]
@@ -5180,6 +5182,15 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "b1c38a07cb4a2705c91feaedc9013a65481ec1b38d818b885d642b9f06ec6edd"
 dependencies = [
  "web-time",
+]
+
+[[package]]
+name = "webpki-roots"
+version = "1.0.11"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "f5f280bbb2b287bc8e7de7e3852945a0ff50d1bbcb5ed42b6c7a568c546df171"
+dependencies = [
+ "rustls-pki-types",
 ]
 
 [[package]]

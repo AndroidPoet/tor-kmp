@@ -206,7 +206,13 @@ kotlin {
             compilations.getByName("main").cinterops.create("torkmp") {
                 defFile(project.file("src/nativeInterop/cinterop/torkmp.def"))
                 includeDirs(nativeDir.resolve("include"))
-                extraOpts("-libraryPath", rustOut.get().dir(triple).asFile.path)
+                extraOpts(
+                    "-libraryPath",
+                    rustOut
+                        .get()
+                        .dir(triple)
+                        .asFile.path,
+                )
                 if ("windows" in triple) extraOpts("-staticLibrary", windowsImportLib)
             }
         // cinterop embeds the static library into the klib, so Rust must build first.
