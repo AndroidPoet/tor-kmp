@@ -26,6 +26,11 @@ jobs:
       - uses: actions/setup-go@v5
         with:
           go-version: '1.26'
+      - name: Android NDK
+        run: |
+          SDKMANAGER="$ANDROID_HOME/cmdline-tools/latest/bin/sdkmanager"
+          yes | "$SDKMANAGER" --licenses > /dev/null || true
+          "$SDKMANAGER" "ndk;28.2.13676358" > /dev/null
 
       # One macOS runner builds the Rust core for every target: cargo for Apple,
       # cargo-zigbuild for Linux/Windows, cargo-ndk for Android.

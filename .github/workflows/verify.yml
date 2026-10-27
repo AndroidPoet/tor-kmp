@@ -26,6 +26,9 @@ jobs:
           distribution: zulu
           java-version: 17
       - uses: gradle/actions/setup-gradle@v4
+      - uses: Swatinem/rust-cache@v2
+        with:
+          workspaces: native
       - name: Rust toolchain
         run: |
           rustup show active-toolchain || rustup toolchain install
@@ -57,6 +60,14 @@ jobs:
       - uses: actions/setup-go@v5
         with:
           go-version: '1.26'
+      - name: Android NDK
+        run: |
+          SDKMANAGER="$ANDROID_HOME/cmdline-tools/latest/bin/sdkmanager"
+          yes | "$SDKMANAGER" --licenses > /dev/null || true
+          "$SDKMANAGER" "ndk;28.2.13676358" > /dev/null
+      - uses: Swatinem/rust-cache@v2
+        with:
+          workspaces: native
       - name: Rust toolchain
         run: |
           rustup show active-toolchain || rustup toolchain install
@@ -87,6 +98,9 @@ jobs:
           distribution: zulu
           java-version: 17
       - uses: gradle/actions/setup-gradle@v4
+      - uses: Swatinem/rust-cache@v2
+        with:
+          workspaces: native
       - name: Rust toolchain
         run: |
           rustup show active-toolchain || rustup toolchain install
@@ -106,7 +120,8 @@ jobs:
   windows:
     name: Windows x64 (tor, tor-ktor)
     runs-on: windows-latest
-    timeout-minutes: 60
+    # A cold Rust build of Arti on this runner alone takes most of an hour.
+    timeout-minutes: 120
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-java@v4
@@ -114,6 +129,9 @@ jobs:
           distribution: zulu
           java-version: 17
       - uses: gradle/actions/setup-gradle@v4
+      - uses: Swatinem/rust-cache@v2
+        with:
+          workspaces: native
       - name: Rust toolchain
         shell: bash
         run: |
@@ -123,11 +141,22 @@ jobs:
       - uses: mlugg/setup-zig@v2
         with:
           version: 0.17.0
-      - name: Live tests (Kotlin/Native mingwX64)
+      - name: Link the test binaries
         shell: bash
-        run: ./gradlew :tor:mingwX64Test :tor-ktor:mingwX64Test
-      - uses: actions/upload-artifact@v4
-        if: always()
-        with:
-          name: windows-results
-          path: '**/build/test-results/**/*.xml'
+        run: ./gradlew :tor:linkDebugTestMingwX64 :tor-ktor:linkDebugTestMingwX64
+      # The binaries run directly so every test's output streams into the log
+      # and a hang is pinned to one test by the per-class timeout, rather than
+      # the Gradle test task sitting silent until the job limit.
+      - name: Unit tests (no network)
+        shell: bash
+        run: |
+          timeout 120 tor/build/bin/mingwX64/debugTest/test.kexe --ktest_logger=SIMPLE \
+            --ktest_filter='io.github.androidpoet.tor.ValueSemanticsTest.*:io.github.androidpoet.tor.internal.NativeHandleTest.*'
+      - name: Live tests, tor
+        shell: bash
+        run: |
+          timeout 900 tor/build/bin/mingwX64/debugTest/test.kexe --ktest_logger=SIMPLE \
+            --ktest_filter='io.github.androidpoet.tor.TorLiveTest.*'
+      - name: Live tests, tor-ktor
+        shell: bash
+        run: timeout 900 tor-ktor/build/bin/mingwX64/debugTest/test.kexe --ktest_logger=SIMPLE
