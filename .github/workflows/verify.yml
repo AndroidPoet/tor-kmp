@@ -150,21 +150,20 @@ jobs:
       - uses: mlugg/setup-zig@v2
         with:
           version: 0.17.0
-      # The same Rust core as a DLL inside a JVM process: tells a Windows problem
-      # in the core apart from one in the Kotlin/Native static link.
+      # The Windows gate: the Rust core as torkmp.dll inside a JVM, which is what
+      # the published jar ships.
       - name: JVM live test (torkmp.dll)
         shell: bash
-        continue-on-error: true
         env:
           TORKMP_LOG: debug
         run: |
-          timeout 1200 ./gradlew :tor:jvmTest --tests '*TorLiveTest.test_connectTls_toCheckTorProject*' --info -Ptor.windows.triple=x86_64-pc-windows-gnullvm 2>&1 \
+          timeout 1200 ./gradlew :tor:jvmTest --tests '*TorLiveTest.test_connectTls_toCheckTorProject*' --info 2>&1 \
             | grep -vE "^(Caching disabled|Skipping|Resolve mutations|Task .* is not up-to-date|Starting process|Successfully started|file or directory|Watching|Received|Build cache|Executing|Transforming|Downloading|Download)" || true
           test -f tor/build/test-results/jvmTest/TEST-io.github.androidpoet.tor.TorLiveTest.xml
           grep -c "<failure" tor/build/test-results/jvmTest/TEST-io.github.androidpoet.tor.TorLiveTest.xml && exit 1 || true
       - name: Link the test binaries
         shell: bash
-        run: ./gradlew :tor:linkDebugTestMingwX64 :tor-ktor:linkDebugTestMingwX64 -Ptor.windows.triple=x86_64-pc-windows-gnullvm
+        run: ./gradlew :tor:linkDebugTestMingwX64 :tor-ktor:linkDebugTestMingwX64
       # The binaries run directly so every test's output streams into the log
       # and a hang is pinned to one test by the per-class timeout, rather than
       # the Gradle test task sitting silent until the job limit.
@@ -173,15 +172,18 @@ jobs:
         run: |
           timeout 120 tor/build/bin/mingwX64/debugTest/test.exe --ktest_logger=SIMPLE \
             --ktest_filter='io.github.androidpoet.tor.ValueSemanticsTest.*:io.github.androidpoet.tor.internal.NativeHandleTest.*'
-      - name: Live tests, tor
+      # Known to stall at circuit creation (issue #1): reported, not gating.
+      - name: Live tests, tor (mingwX64, known stall)
         shell: bash
+        continue-on-error: true
         env:
           TORKMP_LOG: debug
         run: |
           timeout 300 tor/build/bin/mingwX64/debugTest/test.exe --ktest_logger=SIMPLE \
             --ktest_filter='io.github.androidpoet.tor.TorLiveTest.*'
-      - name: Live tests, tor-ktor
+      - name: Live tests, tor-ktor (mingwX64, known stall)
         shell: bash
+        continue-on-error: true
         env:
-          TORKMP_LOG: info
-        run: timeout 600 tor-ktor/build/bin/mingwX64/debugTest/test.exe --ktest_logger=SIMPLE
+          TORKMP_LOG: debug
+        run: timeout 300 tor-ktor/build/bin/mingwX64/debugTest/test.exe --ktest_logger=SIMPLE

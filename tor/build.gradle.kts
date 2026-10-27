@@ -40,17 +40,18 @@ fun cargoRegistryFile(path: String): File? =
 
 val rustBuilds = mutableMapOf<String, TaskProvider<Exec>>()
 
-/** Rust target for Windows; `-Ptor.windows.triple=x86_64-pc-windows-gnullvm` selects the LLVM flavour. */
-val windowsTriple: String = providers.gradleProperty("tor.windows.triple").orElse("x86_64-pc-windows-gnu").get()
+/**
+ * The Windows core targets the LLVM flavour of mingw: it is linked by lld (zig when
+ * cross-building, Kotlin/Native's toolchain), and a `windows-gnu` library linked by
+ * lld bootstraps up to the first circuit and then stalls (issue #1).
+ */
+val windowsTriple = "x86_64-pc-windows-gnullvm"
 
 /** Builds libtorkmp for [triple] once and copies the libraries to build/rust/<triple>. */
 fun rustBuild(triple: String): TaskProvider<Exec> =
     rustBuilds.getOrPut(triple) {
-        // zig cross-builds Linux and Windows from any host; on a Windows host the
-        // windows-gnu library is built natively with the toolchain's own mingw gcc,
-        // while windows-gnullvm always goes through zig's clang.
-        val hostIsWindows = System.getProperty("os.name").orEmpty().startsWith("Windows")
-        val zig = "linux" in triple || ("windows" in triple && (!hostIsWindows || "gnullvm" in triple))
+        // zig cross-builds Linux and Windows from any host.
+        val zig = "linux" in triple || "windows" in triple
         // Linux binaries target glibc 2.17 so they run on every mainstream distro.
         val cargoTarget = if ("linux-gnu" in triple) "$triple.2.17" else triple
         val outputDir = rustOut.map { it.dir(triple) }
@@ -70,8 +71,7 @@ fun rustBuild(triple: String): TaskProvider<Exec> =
                     .filter { it.exists() }
                     .forEach { it.copyTo(destination.resolve(it.name), overwrite = true) }
                 if ("windows" in triple) {
-                    val importCrate = if ("gnullvm" in triple) "windows_x86_64_gnullvm-0.52.6" else "windows_x86_64_gnu-0.52.6"
-                    val importLib = cargoRegistryFile("$importCrate/lib/$windowsImportLib")
+                    val importLib = cargoRegistryFile("windows_x86_64_gnullvm-0.52.6/lib/$windowsImportLib")
                     checkNotNull(importLib) { "$windowsImportLib not found in the cargo registry" }
                     importLib.copyTo(destination.resolve(windowsImportLib), overwrite = true)
                 }

@@ -43,6 +43,10 @@ adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 - A stream whose `BEGIN` times out at the exit is retried twice on a fresh circuit
   instead of failing at once; Arti keeps the slow circuit and makes one attempt per
   call, which left every connect failing for a while behind a congested bridge.
+- The Windows core is built for `x86_64-pc-windows-gnullvm`. The `windows-gnu` build,
+  once linked by lld (zig, Kotlin/Native), bootstrapped up to the first circuit and
+  then stalled; the JVM `torkmp.dll` now passes the live tests on GitHub's Windows
+  runner. The `mingwX64` klib still stalls (#1).
 - A TLS peer that closes without `close_notify` now reads as end of stream, as in
   browsers, instead of failing the read with "peer closed connection without
   sending TLS close_notify".

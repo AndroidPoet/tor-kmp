@@ -287,7 +287,7 @@ val tor =
 | macOS (Kotlin/Native) | `~/Library/Application Support/<app>/tor` | Same linking story as iOS. A sandboxed app needs the `com.apple.security.network.client` entitlement for any outbound socket, Tor included. |
 | JVM / Compose Desktop | a directory under the user's home or `java.io.tmpdir` | The jar carries `libtorkmp` for macOS (arm64, x64), Linux (arm64, x64) and Windows (x64); the right one is extracted to a temporary file and loaded on first use. |
 | Linux (Kotlin/Native) | `$XDG_DATA_HOME/<app>/tor` | glibc 2.17 or newer. |
-| Windows (`mingwX64`) | `%LOCALAPPDATA%\<app>\tor` | Builds and links; see the verification table for what has been executed. |
+| Windows (`mingwX64`) | `%LOCALAPPDATA%\<app>\tor` | Not usable yet: bootstrap stalls at the first circuit ([issue #1](https://github.com/AndroidPoet/tor-kmp/issues/1)). The JVM on Windows works. |
 
 Pick a location the OS backs up **nothing** from: the directory holds Tor's directory cache
 and guard choice, which make bootstrapping fast but also mean two launches with the same
@@ -295,21 +295,23 @@ directory are the same Tor client. Delete it when the user asks to start over.
 
 ### Targets and verification
 
-| Platform | Gradle targets | Native library | Live tests last run (0.1.1, locally) |
+| Platform | Gradle targets | Native library | Live tests last run (0.2.0) |
 | --- | --- | --- | --- |
-| Android (API 24+) | `androidTarget` (`arm64-v8a` `armeabi-v7a` `x86_64` `x86`) | `libtorkmp.so` in the AAR | API 36 emulator, `x86_64` |
-| iOS | `iosArm64` `iosSimulatorArm64` `iosX64` | static, inside the klib | iPhone 17 simulator (arm64) |
-| macOS | `macosArm64` `macosX64` | static, inside the klib | Apple silicon |
-| JVM | `jvm` | five libraries inside the jar | macOS, Apple silicon |
-| Linux | `linuxX64` `linuxArm64` | static, inside the klib | Debian 12 containers, both architectures |
-| Windows | `mingwX64` | static, inside the klib | compiled and linked only, never executed |
+| Android (API 24+) | `androidTarget` (`arm64-v8a` `armeabi-v7a` `x86_64` `x86`) | `libtorkmp.so` in the AAR | API 36 emulator locally; API 34 emulator on a GitHub runner ([run](https://github.com/AndroidPoet/tor-kmp/actions/runs/40506760127)), all four modules incl. an obfs4 bootstrap |
+| iOS | `iosArm64` `iosSimulatorArm64` `iosX64` | static, inside the klib | iPhone 17 simulator locally; iPhone 16 simulator on a `macos-15` runner ([run](https://github.com/AndroidPoet/tor-kmp/actions/runs/40506760127)) |
+| macOS | `macosArm64` `macosX64` | static, inside the klib | Apple silicon, locally |
+| JVM | `jvm` | five libraries inside the jar | macOS (Apple silicon) locally; Windows x64 on a GitHub runner ([run](https://github.com/AndroidPoet/tor-kmp/actions/runs/40528661322), `torkmp.dll`) |
+| Linux | `linuxX64` `linuxArm64` | static, inside the klib | Debian 12 containers locally (both architectures); `ubuntu-latest` runner ([run](https://github.com/AndroidPoet/tor-kmp/actions/runs/40506760127)) |
+| Windows | `mingwX64` | static, inside the klib | compiles, links and passes the unit tests on a GitHub runner, but **bootstrap stalls at the first circuit** ([issue #1](https://github.com/AndroidPoet/tor-kmp/issues/1)). Not usable yet; use the JVM on Windows. |
 
 The live tests fetch an onion service and `check.torproject.org` through the real Tor
-network. The platform runs in the table happen **locally before each release**, on the
-machines listed. CI ([`build.yml`](.github/workflows/build.yml), pull requests and manual
-runs only) covers less: formatting, detekt, `apiCheck` across every target (which builds
-the Rust core for each) and the `tor` module's JVM live tests on a macOS runner. Treat the
-table as the maintainer's last run, not as continuous assurance.
+network. [`verify.yml`](.github/workflows/verify.yml) runs them on GitHub's iOS simulator,
+Android emulator, Linux and Windows runners; it is started by hand before a release
+(`gh workflow run verify.yml`, optionally `-f only=windows`) and the runs linked above are
+the ones for this version. [`build.yml`](.github/workflows/build.yml) (pull requests and
+manual runs) covers formatting, detekt, `apiCheck` across every target (which builds the
+Rust core for each) and the `tor` module's JVM live tests. Treat the table as the
+maintainer's last run, not as continuous assurance.
 
 ### Size
 
