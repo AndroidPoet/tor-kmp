@@ -158,13 +158,13 @@ jobs:
         env:
           TORKMP_LOG: debug
         run: |
-          timeout 1200 ./gradlew :tor:jvmTest --tests '*TorLiveTest.test_connectTls_toCheckTorProject*' --info 2>&1 \
+          timeout 1200 ./gradlew :tor:jvmTest --tests '*TorLiveTest.test_connectTls_toCheckTorProject*' --info -Ptor.windows.triple=x86_64-pc-windows-gnullvm 2>&1 \
             | grep -vE "^(Caching disabled|Skipping|Resolve mutations|Task .* is not up-to-date|Starting process|Successfully started|file or directory|Watching|Received|Build cache|Executing|Transforming|Downloading|Download)" || true
           test -f tor/build/test-results/jvmTest/TEST-io.github.androidpoet.tor.TorLiveTest.xml
           grep -c "<failure" tor/build/test-results/jvmTest/TEST-io.github.androidpoet.tor.TorLiveTest.xml && exit 1 || true
       - name: Link the test binaries
         shell: bash
-        run: ./gradlew :tor:linkDebugTestMingwX64 :tor-ktor:linkDebugTestMingwX64
+        run: ./gradlew :tor:linkDebugTestMingwX64 :tor-ktor:linkDebugTestMingwX64 -Ptor.windows.triple=x86_64-pc-windows-gnullvm
       # The binaries run directly so every test's output streams into the log
       # and a hang is pinned to one test by the per-class timeout, rather than
       # the Gradle test task sitting silent until the job limit.

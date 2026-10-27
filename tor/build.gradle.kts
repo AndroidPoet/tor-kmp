@@ -40,13 +40,17 @@ fun cargoRegistryFile(path: String): File? =
 
 val rustBuilds = mutableMapOf<String, TaskProvider<Exec>>()
 
+/** Rust target for Windows; `-Ptor.windows.triple=x86_64-pc-windows-gnullvm` selects the LLVM flavour. */
+val windowsTriple: String = providers.gradleProperty("tor.windows.triple").orElse("x86_64-pc-windows-gnu").get()
+
 /** Builds libtorkmp for [triple] once and copies the libraries to build/rust/<triple>. */
 fun rustBuild(triple: String): TaskProvider<Exec> =
     rustBuilds.getOrPut(triple) {
         // zig cross-builds Linux and Windows from any host; on a Windows host the
-        // Windows library is built natively with the toolchain's own mingw gcc.
+        // windows-gnu library is built natively with the toolchain's own mingw gcc,
+        // while windows-gnullvm always goes through zig's clang.
         val hostIsWindows = System.getProperty("os.name").orEmpty().startsWith("Windows")
-        val zig = "linux" in triple || ("windows" in triple && !hostIsWindows)
+        val zig = "linux" in triple || ("windows" in triple && (!hostIsWindows || "gnullvm" in triple))
         // Linux binaries target glibc 2.17 so they run on every mainstream distro.
         val cargoTarget = if ("linux-gnu" in triple) "$triple.2.17" else triple
         val outputDir = rustOut.map { it.dir(triple) }
@@ -66,7 +70,8 @@ fun rustBuild(triple: String): TaskProvider<Exec> =
                     .filter { it.exists() }
                     .forEach { it.copyTo(destination.resolve(it.name), overwrite = true) }
                 if ("windows" in triple) {
-                    val importLib = cargoRegistryFile("windows_x86_64_gnu-0.52.6/lib/$windowsImportLib")
+                    val importCrate = if ("gnullvm" in triple) "windows_x86_64_gnullvm-0.52.6" else "windows_x86_64_gnu-0.52.6"
+                    val importLib = cargoRegistryFile("$importCrate/lib/$windowsImportLib")
                     checkNotNull(importLib) { "$windowsImportLib not found in the cargo registry" }
                     importLib.copyTo(destination.resolve(windowsImportLib), overwrite = true)
                 }
@@ -122,7 +127,7 @@ val jvmPlatforms =
         JvmPlatform("x86_64-apple-darwin", "darwin-x86-64", "libtorkmp.dylib"),
         JvmPlatform("x86_64-unknown-linux-gnu", "linux-x86-64", "libtorkmp.so"),
         JvmPlatform("aarch64-unknown-linux-gnu", "linux-aarch64", "libtorkmp.so"),
-        JvmPlatform("x86_64-pc-windows-gnu", "windows-x86-64", "torkmp.dll"),
+        JvmPlatform(windowsTriple, "windows-x86-64", "torkmp.dll"),
     )
 val hostFolder =
     run {
@@ -159,7 +164,7 @@ val nativeTriples =
         "macosX64" to "x86_64-apple-darwin",
         "linuxX64" to "x86_64-unknown-linux-gnu",
         "linuxArm64" to "aarch64-unknown-linux-gnu",
-        "mingwX64" to "x86_64-pc-windows-gnu",
+        "mingwX64" to windowsTriple,
     )
 
 kotlin {
