@@ -24,8 +24,8 @@ import kotlin.time.Duration.Companion.minutes
 class TorEngineLiveTest {
     @Test
     fun test_get_httpsThroughEngine_reportsIsTor() =
-        live { client ->
-            val body = client.get("https://check.torproject.org/api/ip").bodyAsText()
+        live { client, tor ->
+            val body = client.checkTor(tor)
 
             assertTrue(body.contains("\"IsTor\":true"), "not on Tor: $body")
         }
@@ -41,9 +41,8 @@ class TorEngineLiveTest {
 
     @Test
     fun test_get_twiceToSameHost_reusesConnectionAndSucceeds() =
-        live { client ->
-            val first = client.get("https://check.torproject.org/api/ip")
-            val firstBody = first.bodyAsText()
+        live { client, tor ->
+            val firstBody = client.checkTor(tor)
             val second = client.get("https://check.torproject.org/api/ip")
 
             assertEquals(HttpStatusCode.OK, second.status)
@@ -54,10 +53,10 @@ class TorEngineLiveTest {
     @Test
     fun test_get_afterNewIdentity_retiresPooledConnectionAndSucceeds() =
         live { client, tor ->
-            val before = client.get("https://check.torproject.org/api/ip").bodyAsText()
+            val before = client.checkTor(tor)
             tor.newIdentity()
 
-            val after = client.get("https://check.torproject.org/api/ip").bodyAsText()
+            val after = client.checkTor(tor)
 
             assertTrue(before.contains("\"IsTor\":true") && after.contains("\"IsTor\":true"), "$before / $after")
         }
@@ -108,10 +107,28 @@ class TorEngineLiveTest {
             }
         }
 
+    /**
+     * check.torproject.org sometimes accepts the TLS session and then closes it without
+     * answering (it rate-limits busy exits). A new identity moves to another exit.
+     */
+    private suspend fun HttpClient.checkTor(tor: Tor): String {
+        var lastFailure: Exception? = null
+        repeat(PROBE_ATTEMPTS) { attempt ->
+            if (attempt > 0) tor.newIdentity()
+            try {
+                return get("https://check.torproject.org/api/ip").bodyAsText()
+            } catch (failure: Exception) {
+                lastFailure = failure
+            }
+        }
+        throw checkNotNull(lastFailure)
+    }
+
     private companion object {
         const val TORPROJECT_ONION = "2gzyxa5ihm7nsggfxnu52rck2vv4rvmdlkiu3zzui5du4xyclen53wid.onion"
         const val WS_ECHO_HOST = "echo.websocket.org"
         const val MAX_FRAMES = 4
+        const val PROBE_ATTEMPTS = 3
     }
 }
 
