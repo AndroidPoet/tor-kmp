@@ -1,4 +1,6 @@
-<h1 align="center">Tor KMP</h1>
+<p align="center">
+  <img src="art/tor-kmp.png" alt="tor-kmp — Tor for Kotlin Multiplatform" width="800"/>
+</p>
 
 <p align="center"><b>Private. Embedded. Everywhere.</b></p>
 
