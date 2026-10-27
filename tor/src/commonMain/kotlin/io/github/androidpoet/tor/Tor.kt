@@ -175,7 +175,9 @@ public class Tor(
         password: String? = null,
     ): SocksProxy {
         require(port == 0 || port in PORT_RANGE) { "port $port is not 0 or in $PORT_RANGE" }
-        require(password == null || password.isNotEmpty()) { "password must not be empty; pass null for no authentication" }
+        require(password == null || password.isSocksCredential()) {
+            "password must be 1..255 UTF-8 bytes without NUL (SOCKS5 limit); pass null for no authentication"
+        }
         bootstrap()
         // Serialised, so two callers cannot start servers with different passwords and
         // each believe theirs won; the native side only ever keeps the first.
@@ -287,7 +289,12 @@ public class Tor(
         }
     }
 
-    private companion object {
+    internal companion object {
+        /** RFC 1929 carries credentials with a one-byte length, and the native side takes a C string. */
+        fun String.isSocksCredential(): Boolean = encodeToByteArray().size in 1..SOCKS_CREDENTIAL_MAX_BYTES && '\u0000' !in this
+
+        private const val SOCKS_CREDENTIAL_MAX_BYTES = 255
+
         val PORT_RANGE = 1..65_535
         const val HTTPS_PORT = 443
         const val PROGRESS_INTERVAL_MS = 250L

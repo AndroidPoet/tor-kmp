@@ -241,6 +241,7 @@ android {
     compileSdk = Configuration.COMPILE_SDK
     ndkVersion = Configuration.NDK_VERSION
     defaultConfig {
+        consumerProguardFiles("consumer-rules.pro")
         minSdk = Configuration.MIN_SDK
         testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
     }

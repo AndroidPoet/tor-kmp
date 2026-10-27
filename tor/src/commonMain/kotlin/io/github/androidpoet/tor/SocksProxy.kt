@@ -1,5 +1,7 @@
 package io.github.androidpoet.tor
 
+import io.github.androidpoet.tor.Tor.Companion.isSocksCredential
+
 /**
  * A SOCKS5 proxy into Tor on the loopback interface, from [Tor.startSocksProxy].
  *
@@ -20,11 +22,14 @@ public class SocksProxy internal constructor(
     /**
      * The proxy as a `socks5h://` URL, credentials included.
      *
-     * Connections made with different [isolation] keys never share circuits, so
-     * one key per browser tab or account keeps them unlinkable. Null uses the
-     * default group. Keys and the password are percent-encoded, so any string works.
+     * Connections made with different [isolation] keys go through separate circuit
+     * groups, so one key per browser tab or account keeps their Tor circuits apart.
+     * The client must actually send the credentials for this to apply; a client
+     * that connects without authenticating lands in the default group. Null uses
+     * the default group. Keys are percent-encoded; SOCKS5 limits them to 255 bytes.
      */
     public fun url(isolation: String? = null): String {
+        require(isolation == null || isolation.isSocksCredential()) { "isolation key must be 1..255 UTF-8 bytes without NUL" }
         val credentials =
             if (isolation == null && password == null) {
                 ""
