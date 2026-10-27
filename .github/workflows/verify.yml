@@ -6,6 +6,11 @@ name: Verify platforms
 # before a release and links the run from the README.
 on:
   workflow_dispatch:
+    inputs:
+      only:
+        description: "Run one job: ios, android, linux or windows (empty = all)"
+        required: false
+        default: ""
 
 concurrency:
   group: verify-${{ github.ref }}
@@ -17,6 +22,7 @@ env:
 jobs:
   ios-simulator:
     name: iOS simulator (tor, tor-ktor)
+    if: inputs.only == '' || inputs.only == 'ios'
     runs-on: macos-15
     timeout-minutes: 90
     steps:
@@ -43,6 +49,7 @@ jobs:
 
   android-emulator:
     name: Android emulator (tor, tor-ktor, tor-okhttp, tor-lyrebird)
+    if: inputs.only == '' || inputs.only == 'android'
     runs-on: ubuntu-latest
     timeout-minutes: 90
     steps:
@@ -89,6 +96,7 @@ jobs:
 
   linux:
     name: Linux x64 (tor, tor-ktor)
+    if: inputs.only == '' || inputs.only == 'linux'
     runs-on: ubuntu-latest
     timeout-minutes: 60
     steps:
@@ -119,6 +127,7 @@ jobs:
 
   windows:
     name: Windows x64 (tor, tor-ktor)
+    if: inputs.only == '' || inputs.only == 'windows'
     runs-on: windows-latest
     # A cold Rust build of Arti on this runner alone takes most of an hour.
     timeout-minutes: 120
@@ -155,9 +164,9 @@ jobs:
       - name: Live tests, tor
         shell: bash
         env:
-          TORKMP_LOG: info
+          TORKMP_LOG: debug
         run: |
-          timeout 600 tor/build/bin/mingwX64/debugTest/test.exe --ktest_logger=SIMPLE \
+          timeout 300 tor/build/bin/mingwX64/debugTest/test.exe --ktest_logger=SIMPLE \
             --ktest_filter='io.github.androidpoet.tor.TorLiveTest.*'
       - name: Live tests, tor-ktor
         shell: bash
