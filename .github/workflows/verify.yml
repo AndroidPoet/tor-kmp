@@ -181,18 +181,15 @@ jobs:
         run: |
           timeout 120 tor/build/bin/mingwX64/debugTest/test.exe --ktest_logger=SIMPLE \
             --ktest_filter='io.github.androidpoet.tor.ValueSemanticsTest.*:io.github.androidpoet.tor.internal.NativeHandleTest.*'
-      # Known to stall at circuit creation (issue #1): reported, not gating.
-      - name: Live tests, tor (mingwX64, known stall)
+      - name: Live tests, tor (mingwX64)
         shell: bash
-        continue-on-error: true
         env:
           TORKMP_LOG: ${{ inputs.log }}
         run: |
-          timeout 300 tor/build/bin/mingwX64/debugTest/test.exe --ktest_logger=SIMPLE \
+          timeout 600 tor/build/bin/mingwX64/debugTest/test.exe --ktest_logger=SIMPLE \
             --ktest_filter='io.github.androidpoet.tor.TorLiveTest.*'
-      - name: Live tests, tor-ktor (mingwX64, known stall)
+      - name: Live tests, tor-ktor (mingwX64)
         shell: bash
-        continue-on-error: true
         env:
           TORKMP_LOG: ${{ inputs.log }}
-        run: timeout 300 tor-ktor/build/bin/mingwX64/debugTest/test.exe --ktest_logger=SIMPLE
+        run: timeout 600 tor-ktor/build/bin/mingwX64/debugTest/test.exe --ktest_logger=SIMPLE

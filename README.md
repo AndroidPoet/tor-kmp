@@ -146,9 +146,10 @@ same on every platform) and negotiates `http/1.1`. It is a convenience for simpl
 for certificate pinning, your platform's trust store or client certificates, do TLS yourself
 on top of `connect()`, which is exactly what `tor-okhttp` does. A peer that drops the
 connection without a TLS `close_notify` makes `read()` throw instead of reporting the end of
-the stream, so a truncated response is never mistaken for a complete one; read as much as
-your protocol's framing says (`Content-Length`, chunking) and you never see it. The HTTP
-adapters do that for you.
+the stream, so a truncated response is never mistaken for a complete one. Read as much as
+your protocol's framing says (`Content-Length`, chunking) and you never see it; the HTTP
+adapters do that, and only a response delimited by the connection closing can still fail
+this way, when the server also skips `close_notify`.
 
 ### Ktor (`tor-ktor`, every target)
 

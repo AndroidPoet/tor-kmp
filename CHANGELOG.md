@@ -44,10 +44,13 @@ adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
   instead of failing at once; Arti keeps the slow circuit and makes one attempt per
   call, which left every connect failing for a while behind a congested bridge. A
   retried stream gets a circuit of its own rather than its isolation group's.
-- The Windows core is built for `x86_64-pc-windows-gnullvm`. The `windows-gnu` build,
-  once linked by lld (zig, Kotlin/Native), bootstrapped up to the first circuit and
-  then stalled; the JVM `torkmp.dll` now passes a live test on GitHub's Windows
-  runner. The `mingwX64` klib still stalls (#1).
+- Windows bootstrap no longer hangs at 15 % with one core busy. Arti's
+  `saturating-time` 0.5.0 searches for the platform's minimum `SystemTime` with 1 ns
+  steps, and on Windows the clock moves in 100 ns ticks, so the search never ended;
+  the consensus parser hit it on every bootstrap (arti#2678, arti#2823). The crate is
+  vendored with the two-line fix under `native/vendor/` until a fixed release ships
+  (#1). The Windows core is now built for `x86_64-pc-windows-gnullvm`, which makes
+  the DLL inside the jar 6.9 MB instead of 17 MB.
 - Native errors now carry their whole cause chain, so a failure deep in Arti names
   its root cause (a locked state file, an unreadable directory) instead of only the
   layer that wrapped it.

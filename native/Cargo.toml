@@ -45,3 +45,11 @@ codegen-units = 1
 # Apple targets strip at link time instead (.cargo/config.toml).
 strip = false
 panic = "abort"
+
+# saturating-time 0.5.0 loops forever on Windows: SystemTime there moves in
+# 100 ns steps, and its limit search expects 1 ns progress. Every consensus
+# parse hits it, so bootstrap never passes 15 % (arti#2678, arti#2823). The
+# vendored copy is 0.5.0 plus the two-line fix; drop it when a fixed release
+# ships.
+[patch.crates-io]
+saturating-time = { path = "vendor/saturating-time" }

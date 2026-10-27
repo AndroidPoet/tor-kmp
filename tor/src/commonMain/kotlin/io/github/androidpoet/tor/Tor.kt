@@ -131,7 +131,8 @@ public class Tor(
      * carries plaintext and TLS happens inside the library, identically on every
      * platform. A peer that closes without a TLS `close_notify` makes [TorStream.read]
      * throw rather than return -1, so a truncated response cannot pass for a complete
-     * one; read by your protocol's framing and it never happens.
+     * one. Read by your protocol's framing (`Content-Length`, chunking) and it only
+     * happens for a response the server ends by closing the connection.
      *
      * @throws TorException if the connection or the handshake fails, or the client is closed.
      */
